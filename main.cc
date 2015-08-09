@@ -21,11 +21,15 @@ static void print_disk_info(const char *path) {
         return;
     }
     fsblkcnt_t used = buf.f_blocks - buf.f_bavail;
-    printf(" %s: %.0f%%", path, used * 100.0 / buf.f_blocks);
+    printf("%s: %.0f%%", path, used * 100.0 / buf.f_blocks);
 }
 
 static void print_battery() {
     FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
+    if (!file) {
+        printf("BATTERY FAIIIIIIIIIIIIL");
+        return;
+    }
     unsigned long energy_now;
     fscanf(file, "%lu", &energy_now);
     fclose(file);
@@ -35,6 +39,7 @@ static void print_battery() {
     fclose(file);
 
     unsigned long percentage = energy_now * 100 / energy_full;
+
     file = fopen("/sys/class/power_supply/BAT0/status", "rw");
     char *line = nullptr;
     size_t len;
@@ -42,21 +47,56 @@ static void print_battery() {
     fclose(file);
     const char *icon;
     if (strcmp(line, "Charging") == 0) {
-            icon = "";
+        printf("charging: %lu%%", percentage);
     } else {
-        if (percentage < 10) {
-            icon = "";
-        } else if (percentage < 50) {
-            icon = "";
-        } else if (percentage < 90) {
-            icon = "";
-        } else {
-            icon = "";
+        printf("bat: %lu%%", percentage);
+    }
+}
+
+static void print_cpu()
+{
+    FILE *fp = fopen("/proc/stat", "r");
+    if (!fp) {
+        printf("net: error opening /proc/stat: %m");
+        return;
+    }
+    unsigned user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice;
+    if (!fscanf(fp, "cpu %u %u %u %u %u %u %u %u %u %u",
+                &user, &nice, &system, &idle, &iowait,
+                &irq, &softirq, &steal, &guest, &guest_nice)) {
+        fclose(fp);
+        printf("cpu usage error");
+        return;
+    }
+    fclose(fp);
+
+    idle += iowait;
+    unsigned nonidle = user + nice + system + irq + softirq + steal;
+    static unsigned previdle = 0, prevnonidle = 0;
+    printf("cpu: %3.0f%%", (nonidle - prevnonidle) * 100.0 / (idle + nonidle - previdle - prevnonidle));
+    previdle = idle;
+    prevnonidle = nonidle;
+}
+
+static void print_wifi_strength() {
+    FILE *fp = fopen("/proc/net/wireless", "r");
+    if (!fp) {
+        printf("net: error opening /proc/net/wireless: %m");
+        return;
+    }
+
+    char *ln = nullptr;
+    float strength = 10.1;
+
+    for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
+        if (sscanf(ln, " wlp4s0: %*u %f %*f %*d %*u %*u %*u %*u %*u %*u",
+                   &strength) == 1) {
+            break;
         }
     }
-    free(line);
+    fclose(fp);
 
-    printf("%s: %lu%%", icon, percentage);
+    printf("wifi: %3.0f%%", strength);
 }
 
 static void print_net_usage() {
@@ -70,12 +110,12 @@ static void print_net_usage() {
     static unsigned tx[1 + net_samples];
 
     char *ln = nullptr;
-    for (size_t len = 0; getline(&ln, &len, fp) != 1;) {
-        if (sscanf(ln, " wlp4s0: %u %*u %*u %*u %*u %*u %*u %*u %u",
+    for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
+        if (sscanf(ln, " wlp3s0: %u %*u %*u %*u %*u %*u %*u %*u %u",
                    &rx[net_samples], &tx[net_samples]) == 2) {
             // switch to kB
-            rx[net_samples] /= 1000;
-            tx[net_samples] /= 1000;
+            rx[net_samples] /= 1024;
+            tx[net_samples] /= 1024;
             break;
         }
     }
@@ -98,7 +138,7 @@ static void print_net_usage() {
         tx_delta += tx[i + 1] - tx[i];
     }
 
-    printf(": %4u↓ %4u↑", rx_delta / net_samples, tx_delta / net_samples);
+    printf("rx: %4ukb tx: %4ukb", rx_delta / net_samples, tx_delta / net_samples);
 
     memmove(rx, rx + 1, sizeof rx[0] * net_samples);
     memmove(tx, tx + 1, sizeof tx[0] * net_samples);
@@ -110,7 +150,7 @@ static void print_load() {
         fputs("load: error", stdout);
         return;
     }
-    printf(": %1.2f", loadavg);
+    printf("load: %1.2f", loadavg);
 }
 
 static void print_mem() {
@@ -129,7 +169,7 @@ static void print_mem() {
     }
 
     unsigned long used = memtotal - memavailable;
-    printf(": %.0f%%", used * 100.0 / memtotal);
+    printf("mem: %.0f%%", used * 100.0 / memtotal);
 
     fclose(fp);
 }
@@ -155,17 +195,7 @@ static void print_volume(PulseClient &client) {
 
     int volume = device->Volume();
 
-    const char *symbol = "🔊";
-
-    if (device->Muted()) {
-        symbol = "🔇";
-    } else if (volume <= 33) {
-        symbol = "🔈";
-    } else if (volume <= 67) {
-        symbol = "🔉";
-    }
-
-    printf("%s  %d%%", symbol, device->Volume());
+    printf("vol: %3d%%", device->Volume());
 }
 
 int main() {
@@ -187,9 +217,13 @@ int main() {
         print_sep();
         print_net_usage();
         print_sep();
+        print_wifi_strength();
+        print_sep();
         print_load();
         print_sep();
         print_mem();
+        print_sep();
+        print_cpu();
         print_sep();
         print_volume(client);
         print_sep();

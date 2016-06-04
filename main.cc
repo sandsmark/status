@@ -78,7 +78,7 @@ static void do_suspend()
 static void print_battery() {
     FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
     if (!file) {
-        printf("BATTERY FAIIIIIIIIIIIIL");
+        printf("failed to open file for battery");
         return;
     }
     unsigned long energy_now;

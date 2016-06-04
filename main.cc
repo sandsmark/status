@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/statvfs.h>
 #include <time.h>
+#include <systemd/sd-bus.h>
 
 #include "pulse.h"
 
@@ -44,6 +45,36 @@ static void print_disk_info(const char *path) {
     }
 }
 
+static void do_suspend()
+{
+    sd_bus *bus = nullptr;
+    int ret = sd_bus_open_system(&bus);
+    if (ret < 0) {
+        printf("Failed to connect to system bus: %s", strerror(-ret));
+        return;
+    }
+
+    sd_bus_error error = SD_BUS_ERROR_NULL;
+	sd_bus_message *dbusRet = nullptr;
+	ret = sd_bus_call_method(bus,
+			"org.freedesktop.login1",           /* service to contact */
+			"/org/freedesktop/login1",          /* object path */
+			"org.freedesktop.login1.Manager",   /* interface name */
+			"Suspend",                          /* method name */
+			&error,                               /* object to return error in */
+			&dbusRet,                                   /* return message on success */
+			"b",                                 /* input signature */
+			"true");                       /* first argument */
+
+    if (ret < 0) {
+        printf("Failed to issue method call: %s\n", error.message);
+    }
+
+    sd_bus_error_free(&error);
+    sd_bus_message_unref(dbusRet);
+    sd_bus_unref(bus);
+}
+
 static void print_battery() {
     FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
     if (!file) {
@@ -60,6 +91,7 @@ static void print_battery() {
 
     unsigned long percentage = energy_now * 100 / energy_full;
 
+
     file = fopen("/sys/class/power_supply/BAT0/status", "rw");
     char *line = nullptr;
     size_t len;
@@ -69,6 +101,12 @@ static void print_battery() {
     if (strcmp(line, "Charging\n") == 0) {
         printf("charging: %lu%%", percentage);
     } else {
+        static unsigned long last_percentage = 100;
+        if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
+            do_suspend();
+        }
+        last_percentage = percentage;
+
         printf("bat: %lu%%", percentage);
         if (percentage < 10) {
             print_red();

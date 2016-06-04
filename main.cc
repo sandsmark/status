@@ -20,8 +20,8 @@ static void print_disk_info(const char *path) {
         fprintf(stderr, "error running statvfs on %s: %s\n", path, strerror(errno));
         return;
     }
-    fsblkcnt_t used = buf.f_blocks - buf.f_bavail;
-    printf("%s: %.0f%%", path, used * 100.0 / buf.f_blocks);
+    double gb_free = (double)buf.f_bavail * (double)buf.f_bsize / 1000000000.0;
+    printf("%s: %.1fGB free", path, gb_free);
 }
 
 static void print_battery() {
@@ -46,11 +46,12 @@ static void print_battery() {
     getline(&line, &len, file);
     fclose(file);
     const char *icon;
-    if (strcmp(line, "Charging") == 0) {
+    if (strcmp(line, "Charging\n") == 0) {
         printf("charging: %lu%%", percentage);
     } else {
         printf("bat: %lu%%", percentage);
     }
+    free(line);
 }
 
 static void print_cpu()
@@ -79,6 +80,26 @@ static void print_cpu()
 }
 
 static void print_wifi_strength() {
+    {
+        FILE *fp = fopen("/sys/class/net/wlp4s0/carrier", "r");
+        if (!fp) {
+            printf("Unable to get carrier status for wifi");
+            return;
+        }
+
+        char *line = nullptr;
+        size_t len;
+        getline(&line, &len, fp);
+        fclose(fp);
+        const char *carrier_status;
+        if (strcmp(line, "0\n") == 0) {
+            printf("wifi down");
+            free(line);
+            return;
+        }
+        free(line);
+    }
+
     FILE *fp = fopen("/proc/net/wireless", "r");
     if (!fp) {
         printf("net: error opening /proc/net/wireless: %m");
@@ -86,7 +107,7 @@ static void print_wifi_strength() {
     }
 
     char *ln = nullptr;
-    float strength = 10.1;
+    float strength = -1.0;
 
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
         if (sscanf(ln, " wlp4s0: %*u %f %*f %*d %*u %*u %*u %*u %*u %*u",
@@ -94,9 +115,14 @@ static void print_wifi_strength() {
             break;
         }
     }
+    free(ln);
     fclose(fp);
 
-    printf("wifi: %3.0f%%", strength);
+    if (strength < 0) {
+        printf("wifi down");
+    } else {
+        printf("wifi: %3.0f%%", strength);
+    }
 }
 
 static void print_net_usage() {
@@ -106,12 +132,12 @@ static void print_net_usage() {
         return;
     }
 
-    static unsigned rx[1 + net_samples];
-    static unsigned tx[1 + net_samples];
+    static unsigned long rx[1 + net_samples];
+    static unsigned long tx[1 + net_samples];
 
     char *ln = nullptr;
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp3s0: %u %*u %*u %*u %*u %*u %*u %*u %u",
+        if (sscanf(ln, " wlp4s0: %lu %*lu %*lu %*lu %*lu %*lu %*lu %*lu %lu",
                    &rx[net_samples], &tx[net_samples]) == 2) {
             // switch to kB
             rx[net_samples] /= 1024;
@@ -131,8 +157,8 @@ static void print_net_usage() {
         first_run = false;
     }
 
-    unsigned rx_delta = 0;
-    unsigned tx_delta = 0;
+    unsigned long rx_delta = 0;
+    unsigned long tx_delta = 0;
     for (unsigned i = 0; i < net_samples; i++) {
         rx_delta += rx[i + 1] - rx[i];
         tx_delta += tx[i + 1] - tx[i];
@@ -177,15 +203,14 @@ static void print_mem() {
 static void print_time() {
     time_t now;
     time(&now);
-    char buf[sizeof "2011-10-08 07:07:09"];
-    strftime(buf, sizeof buf, "%F %T", localtime(&now));
+    char buf[sizeof "Fri 2015-10-30 12:44:52"];
+    strftime(buf, sizeof buf, "%a %F %T", localtime(&now));
     fputs(buf, stdout);
 }
 
 static void print_sep() {
     fputs(" | ", stdout);
 }
-
 static void print_volume(PulseClient &client) {
     client.Populate();
 
@@ -195,7 +220,12 @@ static void print_volume(PulseClient &client) {
 
     int volume = device->Volume();
 
-    printf("vol: %3d%%", device->Volume());
+    if (device->Muted()) {
+        printf("vol muted", device->Volume());
+        volume = 0;
+    } else {
+        printf("vol: %3d%%", device->Volume());
+    }
 }
 
 int main() {
@@ -211,8 +241,8 @@ int main() {
     for (unsigned i = 0;; i++) {
         print_battery();
         print_sep();
-        print_disk_info("/boot");
-        print_sep();
+//        print_disk_info("/boot");
+//        print_sep();
         print_disk_info("/");
         print_sep();
         print_net_usage();

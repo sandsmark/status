@@ -14,6 +14,21 @@
 const unsigned net_samples = 2;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
+static void print_red()
+{
+    printf("\", \"color\": \"#ff0000");
+}
+
+static void print_yellow()
+{
+    printf("\", \"color\": \"#ffff00");
+}
+
+static void print_green()
+{
+    printf("\", \"color\": \"#00ff00");
+}
+
 static void print_disk_info(const char *path) {
     struct statvfs buf;
     if (statvfs(path, &buf) == -1) {
@@ -22,6 +37,11 @@ static void print_disk_info(const char *path) {
     }
     double gb_free = (double)buf.f_bavail * (double)buf.f_bsize / 1000000000.0;
     printf("%s: %.1fGB free", path, gb_free);
+    if (gb_free < 1) {
+        print_red();
+    } else if (gb_free < 5) {
+        print_yellow();
+    }
 }
 
 static void print_battery() {
@@ -50,6 +70,13 @@ static void print_battery() {
         printf("charging: %lu%%", percentage);
     } else {
         printf("bat: %lu%%", percentage);
+        if (percentage < 10) {
+            print_red();
+        } else if (percentage < 20) {
+            print_yellow();
+        } else if (percentage < 30) {
+            print_green();
+        }
     }
     free(line);
 }
@@ -94,6 +121,7 @@ static void print_wifi_strength() {
         const char *carrier_status;
         if (strcmp(line, "0\n") == 0) {
             printf("wifi down");
+            print_red();
             free(line);
             return;
         }
@@ -120,6 +148,7 @@ static void print_wifi_strength() {
 
     if (strength < 0) {
         printf("wifi down");
+        print_red();
     } else {
         printf("wifi: %3.0f%%", strength);
     }
@@ -177,6 +206,9 @@ static void print_load() {
         return;
     }
     printf("load: %1.2f", loadavg);
+    if (loadavg > 1) {
+        print_yellow();
+    }
 }
 
 static void print_mem() {
@@ -195,7 +227,11 @@ static void print_mem() {
     }
 
     unsigned long used = memtotal - memavailable;
-    printf("mem: %.0f%%", used * 100.0 / memtotal);
+    double percentage = used * 100.0 / memtotal;
+    printf("mem: %.0f%%", percentage);
+    if (percentage > 80) {
+        print_red();
+    }
 
     fclose(fp);
 }
@@ -209,7 +245,9 @@ static void print_time() {
 }
 
 static void print_sep() {
-    fputs(" | ", stdout);
+    printf("\""
+           "  },"
+           "  {   \"full_text\": \"");
 }
 static void print_volume(PulseClient &client) {
     client.Populate();
@@ -225,6 +263,7 @@ static void print_volume(PulseClient &client) {
         volume = 0;
     } else {
         printf("vol: %3d%%", device->Volume());
+        print_green();
     }
 }
 
@@ -238,11 +277,15 @@ int main() {
     };
     sigaction(SIGPIPE, &sa, nullptr);
 
+    printf("{ \"version\": 1 }\n[\n");
+
     for (unsigned i = 0;; i++) {
+        printf(" ["
+           "  {   \"full_text\": \"");
         print_battery();
-        print_sep();
-//        print_disk_info("/boot");
 //        print_sep();
+//        print_disk_info("/boot");
+        print_sep();
         print_disk_info("/");
         print_sep();
         print_net_usage();
@@ -258,7 +301,7 @@ int main() {
         print_volume(client);
         print_sep();
         print_time();
-        putchar('\n');
+        printf("\" } ],\n");
         fflush(stdout);
 
         // sleep until the next second

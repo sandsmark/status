@@ -321,8 +321,6 @@ int main() {
         printf(" ["
            "  {   \"full_text\": \"");
         print_battery();
-//        print_sep();
-//        print_disk_info("/boot");
         print_sep();
         print_disk_info("/");
         print_sep();

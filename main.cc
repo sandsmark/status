@@ -244,7 +244,7 @@ static void print_load() {
         return;
     }
     printf("load: %1.2f", loadavg);
-    if (loadavg > 1) {
+    if (loadavg > 2) {
         print_yellow();
     }
 }

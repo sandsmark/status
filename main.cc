@@ -50,7 +50,7 @@ static void do_suspend()
     sd_bus *bus = nullptr;
     int ret = sd_bus_open_system(&bus);
     if (ret < 0) {
-        printf("Failed to connect to system bus: %s", strerror(-ret));
+        fprintf(stderr, "Failed to connect to system bus: %s", strerror(-ret));
         return;
     }
 
@@ -67,7 +67,7 @@ static void do_suspend()
 			"true");                       /* first argument */
 
     if (ret < 0) {
-        printf("Failed to issue method call: %s\n", error.message);
+        fprintf(stderr, "Failed to issue method call: %s\n", error.message);
     }
 
     sd_bus_error_free(&error);
@@ -119,6 +119,8 @@ static void print_battery() {
     free(line);
 }
 
+static unsigned s_cpu_high_seconds = 0;
+
 static void print_cpu()
 {
     FILE *fp = fopen("/proc/stat", "r");
@@ -139,11 +141,38 @@ static void print_cpu()
     idle += iowait;
     unsigned nonidle = user + nice + system + irq + softirq + steal;
     static unsigned previdle = 0, prevnonidle = 0;
-    printf("cpu: %3.0f%%", (nonidle - prevnonidle) * 100.0 / (idle + nonidle - previdle - prevnonidle));
+    const unsigned percent = (nonidle - prevnonidle) * 100.0 / (idle + nonidle - previdle - prevnonidle);
+
+    printf("cpu: %3u%%", percent);
     previdle = idle;
     prevnonidle = nonidle;
+
+    // Show feedback if CPU is pegged
+    if (percent > 20) {
+        s_cpu_high_seconds++;
+    } else {
+        s_cpu_high_seconds = 0;
+    }
+    if (s_cpu_high_seconds > 120) {
+        print_red();
+    } else if (s_cpu_high_seconds > 30) {
+        print_yellow();
+    }
+
 }
 
+static void print_load() {
+    double loadavg;
+    if (getloadavg(&loadavg, 1) == -1) {
+        fputs("load: error", stdout);
+        return;
+    }
+    printf("load: %1.2f", loadavg);
+    // Only print high load if CPU is not attracting attention
+    if (loadavg > 2 && s_cpu_high_seconds < 30) {
+        print_yellow();
+    }
+}
 static void print_wifi_strength() {
     {
         FILE *fp = fopen("/sys/class/net/wlp4s0/carrier", "r");
@@ -235,18 +264,6 @@ static void print_net_usage() {
 
     memmove(rx, rx + 1, sizeof rx[0] * net_samples);
     memmove(tx, tx + 1, sizeof tx[0] * net_samples);
-}
-
-static void print_load() {
-    double loadavg;
-    if (getloadavg(&loadavg, 1) == -1) {
-        fputs("load: error", stdout);
-        return;
-    }
-    printf("load: %1.2f", loadavg);
-    if (loadavg > 2) {
-        print_yellow();
-    }
 }
 
 static void print_mem() {

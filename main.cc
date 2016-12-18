@@ -217,7 +217,7 @@ static void print_wifi_strength() {
         printf("wifi down");
         print_red();
     } else {
-        printf("wifi: %3.0f%%", strength);
+        printf("wifi: %3.0f%%", strength * 100 / 70);
     }
 }
 

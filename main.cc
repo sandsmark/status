@@ -291,11 +291,16 @@ static void print_mem() {
     fclose(fp);
 }
 
-static void print_time() {
+static void print_time(time_t offset = 0) {
     time_t now;
     time(&now);
     char buf[sizeof "Fri 2015-10-30 12:44:52"];
-    strftime(buf, sizeof buf, "%a %F %T", localtime(&now));
+    if (offset) {
+        now += offset;
+        strftime(buf, sizeof buf, "%H:%M", localtime(&now));
+    } else {
+        strftime(buf, sizeof buf, "%a %F %T", localtime(&now));
+    }
     fputs(buf, stdout);
 }
 
@@ -304,6 +309,7 @@ static void print_sep() {
            "  },"
            "  {   \"full_text\": \"");
 }
+
 static void print_volume(PulseClient &client) {
     client.Populate();
 
@@ -352,6 +358,8 @@ int main() {
         print_cpu();
         print_sep();
         print_volume(client);
+        print_sep();
+        print_time(6 * 3600);
         print_sep();
         print_time();
         printf("\" } ],\n");

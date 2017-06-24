@@ -15,6 +15,17 @@
 const unsigned net_samples = 2;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
+static void print_sep() {
+    printf("\""
+           "  },"
+           "  {   \"full_text\": \"");
+}
+
+static void print_black()
+{
+    printf("\", \"color\": \"#000000");
+}
+
 static void print_red()
 {
     printf("\", \"color\": \"#ff0000");

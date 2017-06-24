@@ -228,14 +228,15 @@ class PulseClient {
     balance_range_ = { min, max };
   }
 
+  bool populate_server_info();
+  bool populate_sinks();
  private:
-  void mainloop_iterate(pa_operation* op);
+  bool init();
+  bool mainloop_iterate(pa_operation* op);
   template<class T> T* find_fuzzy(vector<T>& haystack, const string& needle);
 
-  void populate_server_info();
-  void populate_cards();
-  void populate_sinks();
-  void populate_sources();
+  bool populate_cards();
+  bool populate_sources();
 
   Device* get_device(vector<Device>& devices, const uint32_t index);
   Device* get_device(vector<Device>& devices, const string& name);

@@ -16,8 +16,14 @@
 
 namespace {
 static void connect_state_cb(pa_context* context, void* raw) {
-  enum pa_context_state *state = static_cast<enum pa_context_state*>(raw);
-  *state = pa_context_get_state(context);
+  try {
+    enum pa_context_state *state = static_cast<enum pa_context_state*>(raw);
+    *state = pa_context_get_state(context);
+  } catch (std::exception e) {
+    printf("PA connect_state_cb exception: %s", e.what());
+  } catch (...) {
+    printf("PA connect_state_cb unknown exception");
+  }
 }
 
 static void success_cb(pa_context* context, int success, void* raw) {
@@ -97,15 +103,29 @@ static int xstrtol(const char *str, long *out) {
 PulseClient::PulseClient(string client_name) :
     client_name_(client_name),
     volume_range_(0, 150),
-    balance_range_(-100, 100) {
+    balance_range_(-100, 100),
+    mainloop_(nullptr)
+{
+
+  if (!init()) {
+    exit(EXIT_FAILURE);
+  }
+}
+
+bool PulseClient::init()
+{
+  fprintf(stderr, "initializing pa\n");
   enum pa_context_state state = PA_CONTEXT_CONNECTING;
 
   pa_proplist* proplist = pa_proplist_new();
-  pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, client_name.c_str());
+  pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, client_name_.c_str());
   pa_proplist_sets(proplist, PA_PROP_APPLICATION_ID, "com.falconindy.ponymix");
   pa_proplist_sets(proplist, PA_PROP_APPLICATION_VERSION, STATUS_VERSION);
   pa_proplist_sets(proplist, PA_PROP_APPLICATION_ICON_NAME, "audio-card");
 
+  if (mainloop_) {
+    pa_mainloop_free(mainloop_);
+  }
   mainloop_ = pa_mainloop_new();
   context_ = pa_context_new_with_proplist(pa_mainloop_get_api(mainloop_),
                                           nullptr, proplist);
@@ -114,15 +134,21 @@ PulseClient::PulseClient(string client_name) :
 
   pa_context_set_state_callback(context_, connect_state_cb, &state);
   pa_context_connect(context_, nullptr, PA_CONTEXT_NOFLAGS, nullptr);
+  int r;
   while (state != PA_CONTEXT_READY && state != PA_CONTEXT_FAILED) {
-    pa_mainloop_iterate(mainloop_, 1, nullptr);
+    pa_mainloop_iterate(mainloop_, 1, &r);
+    if (r < 0) {
+      fprintf(stderr, "failure to iterate for init PA: %d\n", r);
+      return false;
+    }
   }
 
   if (state != PA_CONTEXT_READY) {
     fprintf(stderr, "failed to connect to pulse daemon: %s\n",
         pa_strerror(pa_context_errno(context_)));
-    exit(EXIT_FAILURE);
+    return false;
   }
+  return true;
 }
 
 //
@@ -134,10 +160,17 @@ PulseClient::~PulseClient() {
 }
 
 void PulseClient::Populate() {
-  populate_server_info();
-  populate_sinks();
-  populate_sources();
-  populate_cards();
+  if (!populate_server_info()) {
+    return;
+  }
+  if (!populate_sinks()) {
+    return;
+  }
+  if (!populate_sources()) {
+  }
+  if (!populate_cards()) {
+    return;
+  }
 }
 
 Card* PulseClient::GetCard(const uint32_t index) {
@@ -251,11 +284,30 @@ Device* PulseClient::GetSourceOutput(const string& name) {
   return get_device(source_outputs_, name);
 }
 
-void PulseClient::mainloop_iterate(pa_operation* op) {
-  int r;
-  while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
-    pa_mainloop_iterate(mainloop_, 1, &r);
+bool PulseClient::mainloop_iterate(pa_operation* op) {
+  try {
+    int r = 0, ret;
+    while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
+      ret = pa_mainloop_iterate(mainloop_, 1, &r) < 0;
+      if (ret < 0) {
+        fprintf(stderr, "PA error while iterating: %d\n", ret);
+        return false;
+      }
+      if (r < 0) {
+        fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
+        //init();
+        return false;
+      }
+    }
+  } catch (std::exception e) {
+    printf("PA connect_state_cb exception: %s", e.what());
+    return false;
+  } catch (...) {
+    printf("PA connect_state_cb unknown exception");
+    return false;
   }
+
+  return true;
 }
 
 template<class T>
@@ -278,60 +330,125 @@ T* PulseClient::find_fuzzy(vector<T>& haystack, const string& needle) {
   return res[0];
 }
 
-void PulseClient::populate_cards() {
-  vector<Card> cards;
-  pa_operation* op = pa_context_get_card_info_list(context_,
-                                                   card_info_cb,
-                                                   static_cast<void*>(&cards));
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+bool PulseClient::populate_cards() {
+  try {
+    vector<Card> cards;
+    pa_operation* op = pa_context_get_card_info_list(context_,
+        card_info_cb,
+        static_cast<void*>(&cards));
+    if (!op) {
+      printf("unable to get pa_context_get_card_info_list");
+      return false;
+    }
+    if (mainloop_iterate(op)) {
+      pa_operation_unref(op);
+    } else {
+      printf("failure to pa_context_get_card_info_list");
+      return false;
+    }
 
-  using std::swap;
-  swap(cards, cards_);
+
+    using std::swap;
+    swap(cards, cards_);
+  } catch (std::exception e) {
+    printf("PA connect_state_cb exception: %s", e.what());
+    return false;
+  } catch (...) {
+    printf("PA connect_state_cb unknown exception");
+    return false;
+  }
+  return true;
 }
 
-void PulseClient::populate_server_info() {
-  pa_operation* op = pa_context_get_server_info(context_,
-                                                server_info_cb,
-                                                &defaults_);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+bool PulseClient::populate_server_info() {
+  try {
+    pa_operation* op = pa_context_get_server_info(context_,
+        server_info_cb,
+        &defaults_);
+    if (!op) {
+      fprintf(stderr, "unable to get pa_context_get_server_info\n");
+      if (!init()) {
+        fprintf(stderr, "unable to reinit pulseaudio!\n");
+      }
+      return false;
+    }
+
+    if (mainloop_iterate(op)) {
+        pa_operation_unref(op);
+    } else {
+      printf("pa_context_get_server_info iterate failure");
+      return false;
+    }
+  } catch (std::exception e) {
+    printf("PA connect_state_cb exception: %s", e.what());
+    return false;
+  } catch (...) {
+    printf("PA connect_state_cb unknown exception");
+    return false;
+  }
+  return true;
 }
 
-void PulseClient::populate_sinks() {
-  vector<Device> sinks;
-  pa_operation* op = pa_context_get_sink_info_list(
-      context_, device_info_cb, static_cast<void*>(&sinks));
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+bool PulseClient::populate_sinks() {
+  try {
+    vector<Device> sinks;
+    pa_operation* op = pa_context_get_sink_info_list(
+        context_, device_info_cb, static_cast<void*>(&sinks));
+    if (!op) {
+      printf("unable to get pa_context_get_sink_info_list");
+      return false;
+    }
+    mainloop_iterate(op);
+    pa_operation_unref(op);
 
-  vector<Device> sink_inputs;
-  op = pa_context_get_sink_input_info_list(
-      context_, device_info_cb, static_cast<void*>(&sink_inputs));
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+    vector<Device> sink_inputs;
+    op = pa_context_get_sink_input_info_list(
+        context_, device_info_cb, static_cast<void*>(&sink_inputs));
+    if (!op) {
+      printf("unable to get pa_context_get_sink_input_info_list");
+      return false;
+    }
+    mainloop_iterate(op);
+    pa_operation_unref(op);
 
-  using std::swap;
-  swap(sinks, sinks_);
-  swap(sink_inputs, sink_inputs_);
+    using std::swap;
+    swap(sinks, sinks_);
+    swap(sink_inputs, sink_inputs_);
+  } catch (std::exception e) {
+    printf("PA connect_state_cb exception: %s", e.what());
+    return false;
+  } catch (...) {
+    printf("PA connect_state_cb unknown exception");
+    return false;
+  }
+  return true;
 }
 
-void PulseClient::populate_sources() {
+bool PulseClient::populate_sources() {
   vector<Device> sources;
   pa_operation* op = pa_context_get_source_info_list(
       context_, device_info_cb, static_cast<void*>(&sources));
+  if (!op) {
+    printf("unable to get pa_context_get_source_info_list");
+    return false;
+  }
   mainloop_iterate(op);
   pa_operation_unref(op);
 
   vector<Device> source_outputs;
   op = pa_context_get_source_output_info_list(
       context_, device_info_cb, static_cast<void*>(&source_outputs));
+  if (!op) {
+    printf("unable to get pa_context_get_source_info_list");
+    return false;
+  }
   mainloop_iterate(op);
   pa_operation_unref(op);
 
   using std::swap;
   swap(sources, sources_);
   swap(source_outputs, source_outputs_);
+  return true;
 }
 
 bool PulseClient::SetMute(Device& device, bool mute) {

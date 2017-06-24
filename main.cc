@@ -131,6 +131,8 @@ static void print_battery() {
         }
     }
     free(line);
+
+    print_sep();
 }
 
 static unsigned s_cpu_high_seconds = 0;
@@ -181,11 +183,15 @@ static void print_load() {
         fputs("load: error", stdout);
         return;
     }
+
     printf("load: %1.2f", loadavg);
     // Only print high load if CPU is not attracting attention
     if (loadavg > 2 && s_cpu_high_seconds < 30) {
         print_yellow();
+    } else if (loadavg < 1) {
+        //print_black();
     }
+    print_sep();
 }
 static void print_wifi_strength() {
     {
@@ -216,10 +222,10 @@ static void print_wifi_strength() {
     }
 
     char *ln = nullptr;
-    float strength = -1.0;
+    int strength = -1.0;
 
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp4s0: %*u %f %*f %*d %*u %*u %*u %*u %*u %*u",
+        if (sscanf(ln, " wlp4s0: %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
                    &strength) == 1) {
             break;
         }
@@ -231,8 +237,12 @@ static void print_wifi_strength() {
         printf("wifi down");
         print_red();
     } else {
-        printf("wifi: %3.0f%%", strength * 100 / 70);
+        printf("wifi: %3d%%", strength * 100 / 70);
+        if (strength > 30) {
+            //print_black();
+        }
     }
+    print_sep();
 }
 
 static void print_net_usage() {
@@ -318,27 +328,32 @@ static void print_time(time_t offset = 0) {
     fputs(buf, stdout);
 }
 
-static void print_sep() {
-    printf("\""
-           "  },"
-           "  {   \"full_text\": \"");
-}
+static void print_volume(PulseClient &client)
+{
+    print_sep();
+    try {
+        client.populate_server_info();
+        client.populate_sinks();
+        ServerInfo defaults = client.GetDefaults();
+        Device *device = client.GetSink(defaults.sink);
+        if (!device) {
+            print_sep();
+            printf("couldn't find device: %s", defaults.sink.c_str());
+            print_red();
+            return;
+        }
 
-static void print_volume(PulseClient &client) {
-    client.Populate();
-
-    ServerInfo defaults = client.GetDefaults();
-    Device *device = client.GetSink(defaults.sink);
-    if (!device) errx(1, "no match found for device: %s", defaults.sink.c_str());
-
-    int volume = device->Volume();
-
-    if (device->Muted()) {
-        printf("vol muted", device->Volume());
-        volume = 0;
-    } else {
-        printf("vol: %3d%%", device->Volume());
-        print_green();
+        if (!device->Muted()) {
+            print_sep();
+            printf("vol: %3d%%", device->Volume());
+            print_green();
+        }
+    } catch (std::exception e) {
+        printf("exception when interacting with pulse: %s", e.what());
+        print_red();
+    } catch (...) {
+        printf("unknown exception when interacting with pulse");
+        print_red();
     }
 }
 
@@ -354,26 +369,23 @@ int main() {
 
     printf("{ \"version\": 1 }\n[\n");
 
-    for (unsigned i = 0;; i++) {
-        printf(" ["
-           "  {   \"full_text\": \"");
+    while (true) {
+        printf(" [ { \"full_text\": \"");
         print_battery();
-        print_sep();
         print_disk_info("/");
         print_sep();
         print_net_usage();
         print_sep();
         print_wifi_strength();
-        print_sep();
         print_load();
-        print_sep();
         print_mem();
         print_sep();
         print_cpu();
-        print_sep();
         print_volume(client);
         print_sep();
-        print_time(6 * 3600);
+        print_time(-4 * 3600);
+        print_sep();
+        print_time(8 * 3600);
         print_sep();
         print_time();
         printf("\" } ],\n");

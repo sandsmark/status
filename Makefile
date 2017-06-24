@@ -1,7 +1,7 @@
 CCFILES=$(wildcard *.cc)
-CXXFLAGS += -g -fPIC -std=c++11 -DSTATUS_VERSION=\"0.1\" -O0
+CXXFLAGS += -ggdb -fPIC -std=c++11 -DSTATUS_VERSION=\"0.1\" -O2
 OBJECTS=$(patsubst %.cc, %.o, $(CCFILES))
-LDFLAGS=-lpulse -lsystemd
+LDFLAGS=-lpulse -lsystemd -g
 
 status: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)

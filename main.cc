@@ -195,7 +195,7 @@ static void print_load() {
 }
 static void print_wifi_strength() {
     {
-        FILE *fp = fopen("/sys/class/net/wlp4s0/carrier", "r");
+        FILE *fp = fopen("/sys/class/net/wlp3s0/carrier", "r");
         if (!fp) {
             printf("Unable to get carrier status for wifi");
             return;
@@ -225,7 +225,7 @@ static void print_wifi_strength() {
     int strength = -1.0;
 
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp4s0: %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
+        if (sscanf(ln, " wlp3s0: %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
                    &strength) == 1) {
             break;
         }
@@ -257,7 +257,7 @@ static void print_net_usage() {
 
     char *ln = nullptr;
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp4s0: %lu %*lu %*lu %*lu %*lu %*lu %*lu %*lu %lu",
+        if (sscanf(ln, " wlp3s0: %lu %*lu %*lu %*lu %*lu %*lu %*lu %*lu %lu",
                    &rx[net_samples], &tx[net_samples]) == 2) {
             // switch to kB
             rx[net_samples] /= 1024;

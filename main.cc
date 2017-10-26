@@ -318,12 +318,12 @@ static void print_mem() {
 static void print_time(time_t offset = 0) {
     time_t now;
     time(&now);
-    char buf[sizeof "Fri 2015-10-30 12:44:52"];
+    char buf[sizeof "week 43 Fri 2015-10-30 12:44:52"];
     if (offset) {
         now += offset;
         strftime(buf, sizeof buf, "%H:%M", localtime(&now));
     } else {
-        strftime(buf, sizeof buf, "%a %F %T", localtime(&now));
+        strftime(buf, sizeof buf, "week %W %a %F %T", localtime(&now));
     }
     fputs(buf, stdout);
 }

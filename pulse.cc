@@ -19,7 +19,7 @@ static void connect_state_cb(pa_context* context, void* raw) {
   try {
     enum pa_context_state *state = static_cast<enum pa_context_state*>(raw);
     *state = pa_context_get_state(context);
-  } catch (std::exception e) {
+  } catch (const std::exception &e) {
     printf("PA connect_state_cb exception: %s", e.what());
   } catch (...) {
     printf("PA connect_state_cb unknown exception");
@@ -102,9 +102,9 @@ static int xstrtol(const char *str, long *out) {
 
 PulseClient::PulseClient(string client_name) :
     client_name_(client_name),
+    mainloop_(nullptr),
     volume_range_(0, 150),
-    balance_range_(-100, 100),
-    mainloop_(nullptr)
+    balance_range_(-100, 100)
 {
 
   if (!init()) {
@@ -222,6 +222,7 @@ Device* PulseClient::GetDevice(const uint32_t index, enum DeviceType type) {
   case DEVTYPE_SINK_INPUT:
     return GetSinkInput(index);
   case DEVTYPE_SOURCE_OUTPUT:
+  default:
     return GetSourceOutput(index);
   }
 }
@@ -236,7 +237,10 @@ Device* PulseClient::GetDevice(const string& name, enum DeviceType type) {
     return GetSinkInput(name);
   case DEVTYPE_SOURCE_OUTPUT:
     return GetSourceOutput(name);
+  default:
+    break;
   }
+  return nullptr;
 }
 
 const vector<Device>& PulseClient::GetDevices(enum DeviceType type) const {
@@ -249,7 +253,11 @@ const vector<Device>& PulseClient::GetDevices(enum DeviceType type) const {
     return GetSinkInputs();
   case DEVTYPE_SOURCE_OUTPUT:
     return GetSourceOutputs();
+  default:
+    break;
   }
+  static const vector<Device> nullList;
+  return nullList;
 }
 
 Device* PulseClient::GetSink(const uint32_t index) {
@@ -299,7 +307,7 @@ bool PulseClient::mainloop_iterate(pa_operation* op) {
         return false;
       }
     }
-  } catch (std::exception e) {
+  } catch (const std::exception &e) {
     printf("PA connect_state_cb exception: %s", e.what());
     return false;
   } catch (...) {
@@ -350,7 +358,7 @@ bool PulseClient::populate_cards() {
 
     using std::swap;
     swap(cards, cards_);
-  } catch (std::exception e) {
+  } catch (const std::exception &e) {
     printf("PA connect_state_cb exception: %s", e.what());
     return false;
   } catch (...) {
@@ -379,7 +387,7 @@ bool PulseClient::populate_server_info() {
       printf("pa_context_get_server_info iterate failure");
       return false;
     }
-  } catch (std::exception e) {
+  } catch (const std::exception &e) {
     printf("PA connect_state_cb exception: %s", e.what());
     return false;
   } catch (...) {
@@ -414,7 +422,7 @@ bool PulseClient::populate_sinks() {
     using std::swap;
     swap(sinks, sinks_);
     swap(sink_inputs, sink_inputs_);
-  } catch (std::exception e) {
+  } catch (const std::exception &e) {
     printf("PA connect_state_cb exception: %s", e.what());
     return false;
   } catch (...) {
@@ -646,11 +654,12 @@ bool PulseClient::SetDefault(Device& device) {
 }
 
 void PulseClient::remove_device(Device& device) {
-  vector<Device>* devlist;
+  vector<Device>* devlist = nullptr;
 
   switch (device.type_) {
   case DEVTYPE_SINK:
     devlist = &sinks_;
+    break;
   case DEVTYPE_SINK_INPUT:
     devlist = &sink_inputs_;
     break;
@@ -660,6 +669,10 @@ void PulseClient::remove_device(Device& device) {
   case DEVTYPE_SOURCE_OUTPUT:
     devlist = &source_outputs_;
     break;
+  default:
+      errx(1, "impossible to remove device type %d",
+           device.type_);
+      return;
   }
   devlist->erase(
       std::remove_if(

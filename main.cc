@@ -15,28 +15,28 @@
 const unsigned net_samples = 2;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
-static void print_sep() {
+inline void print_sep() {
     printf("\""
            "  },"
            "  {   \"full_text\": \"");
 }
 
-static void print_black()
+inline void print_black()
 {
     printf("\", \"color\": \"#000000");
 }
 
-static void print_red()
+inline void print_red()
 {
     printf("\", \"color\": \"#ff0000");
 }
 
-static void print_yellow()
+inline void print_yellow()
 {
     printf("\", \"color\": \"#ffff00");
 }
 
-static void print_green()
+inline void print_green()
 {
     printf("\", \"color\": \"#00ff00");
 }
@@ -111,7 +111,6 @@ static void print_battery() {
     size_t len;
     getline(&line, &len, file);
     fclose(file);
-    const char *icon;
     if (strcmp(line, "Charging\n") == 0) {
         printf("charging: %lu%%", percentage);
     } else {
@@ -205,7 +204,6 @@ static void print_wifi_strength() {
         size_t len;
         getline(&line, &len, fp);
         fclose(fp);
-        const char *carrier_status;
         if (strcmp(line, "0\n") == 0) {
             printf("wifi down");
             print_red();
@@ -257,7 +255,7 @@ static void print_net_usage() {
 
     char *ln = nullptr;
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp3s0: %lu %*lu %*lu %*lu %*lu %*lu %*lu %*lu %lu",
+        if (sscanf(ln, " wlp3s0: %lu %*u %*u %*u %*u %*u %*u %*u %lu",
                    &rx[net_samples], &tx[net_samples]) == 2) {
             // switch to kB
             rx[net_samples] /= 1024;
@@ -284,7 +282,7 @@ static void print_net_usage() {
         tx_delta += tx[i + 1] - tx[i];
     }
 
-    printf("rx: %4ukb tx: %4ukb", rx_delta / net_samples, tx_delta / net_samples);
+    printf("rx: %4lukb tx: %4lukb", rx_delta / net_samples, tx_delta / net_samples);
 
     memmove(rx, rx + 1, sizeof rx[0] * net_samples);
     memmove(tx, tx + 1, sizeof tx[0] * net_samples);
@@ -348,7 +346,7 @@ static void print_volume(PulseClient &client)
             printf("vol: %3d%%", device->Volume());
             print_green();
         }
-    } catch (std::exception e) {
+    } catch (const std::exception &e) {
         printf("exception when interacting with pulse: %s", e.what());
         print_red();
     } catch (...) {

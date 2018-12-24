@@ -329,29 +329,21 @@ static void print_time(time_t offset = 0) {
 static void print_volume(PulseClient &client)
 {
     print_sep();
-    try {
-        client.populate_server_info();
-        client.populate_sinks();
-        ServerInfo defaults = client.GetDefaults();
-        Device *device = client.GetSink(defaults.sink);
-        if (!device) {
-            print_sep();
-            printf("couldn't find device: %s", defaults.sink.c_str());
-            print_red();
-            return;
-        }
+    client.populate_server_info();
+    client.populate_sinks();
+    ServerInfo defaults = client.GetDefaults();
+    Device *device = client.GetSink(defaults.sink);
+    if (!device) {
+        print_sep();
+        printf("couldn't find device: %s", defaults.sink.c_str());
+        print_red();
+        return;
+    }
 
-        if (!device->Muted()) {
-            print_sep();
-            printf("vol: %3d%%", device->Volume());
-            print_green();
-        }
-    } catch (const std::exception &e) {
-        printf("exception when interacting with pulse: %s", e.what());
-        print_red();
-    } catch (...) {
-        printf("unknown exception when interacting with pulse");
-        print_red();
+    if (!device->Muted()) {
+        print_sep();
+        printf("vol: %3d%%", device->Volume());
+        print_green();
     }
 }
 

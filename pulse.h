@@ -32,18 +32,6 @@ struct Profile {
   string desc;
 };
 
-struct Operations {
-  pa_operation* (*Mute)(pa_context*, uint32_t, int, pa_context_success_cb_t,
-                        void*);
-  pa_operation* (*SetVolume)(pa_context*, uint32_t, const pa_cvolume*,
-                             pa_context_success_cb_t, void*);
-  pa_operation* (*SetDefault)(pa_context*, const char*, pa_context_success_cb_t,
-                              void*);
-  pa_operation* (*Kill)(pa_context*, uint32_t, pa_context_success_cb_t, void*);
-  pa_operation* (*Move)(pa_context*, uint32_t, uint32_t,
-                        pa_context_success_cb_t, void *);
-};
-
 class Device {
  public:
   typedef enum {
@@ -80,7 +68,6 @@ class Device {
   int mute_;
   int balance_;
   uint32_t card_idx_;
-  Operations ops_;
   Device::Availability available_ = Device::AVAILABLE_UNKNOWN;
 };
 
@@ -181,52 +168,25 @@ class PulseClient {
   Card* GetCard(const Device& device);
   const vector<Card>& GetCards() const { return cards_; }
 
-  // Get or set the volume of a device.
+  // Get the volume of a device.
   int GetVolume(const Device& device) const;
-  bool SetVolume(Device& device, long value);
 
   // Convenience wrappers for adjusting volume
   bool IncreaseVolume(Device& device, long increment);
   bool DecreaseVolume(Device& device, long decrement);
 
-  // Get or set the volume of a device. Not all devices support this.
+  // Get the volume of a device. Not all devices support this.
   int GetBalance(const Device& device) const;
-  bool SetBalance(Device& device, long value);
 
-  // Convenience wrappers for adjusting balance
-  bool IncreaseBalance(Device& device, long increment);
-  bool DecreaseBalance(Device& device, long decrement);
-
-  // Get and set mute for a device.
+  // Get mute for a device.
   bool IsMuted(const Device& device) const { return device.mute_; };
-  bool SetMute(Device& device, bool mute);
 
   Device::Availability Availability(const Device& device) const {
     return device.available_;
   }
 
-  // Set the profile for a card by name.
-  bool SetProfile(Card& card, const string& profile);
-
-  // Move a given source output or sink input to the destination.
-  bool Move(Device& source, Device& dest);
-
-  // Kill a source output or sink input.
-  bool Kill(Device& device);
-
-  // Get or set the default sink and source.
+  // Get the default sink and source.
   const ServerInfo& GetDefaults() const { return defaults_; }
-  bool SetDefault(Device& device);
-
-  // Set minimum and maximum allowed volume
-  void SetVolumeRange(int min, int max) {
-    volume_range_ = { min, max };
-  }
-
-  // Set minimum and maximum allowed balance
-  void SetBalanceRange(int min, int max) {
-    balance_range_ = { min, max };
-  }
 
   bool populate_server_info();
   bool populate_sinks();

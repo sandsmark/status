@@ -20,16 +20,6 @@ static void connect_state_cb(pa_context* context, void* raw) {
     *state = pa_context_get_state(context);
 }
 
-static void success_cb(pa_context* context, int success, void* raw) {
-  int *r = static_cast<int*>(raw);
-  *r = success;
-  if (!success) {
-    fprintf(stderr,
-            "operation failed: %s\n",
-            pa_strerror(pa_context_errno(context)));
-  }
-}
-
 static void card_info_cb(pa_context* context,
                          const pa_card_info* info,
                          int eol,
@@ -69,11 +59,6 @@ static void server_info_cb(pa_context* context __attribute__((unused)),
   ServerInfo* defaults = static_cast<ServerInfo*>(raw);
   defaults->sink = i->default_sink_name;
   defaults->source = i->default_source_name;
-}
-
-static pa_cvolume* value_to_cvol(long value, pa_cvolume *cvol) {
-  return pa_cvolume_set(cvol, cvol->channels,
-      std::max(value * PA_VOLUME_NORM / 100.0, 0.0));
 }
 
 static int volume_as_percent(const pa_cvolume* cvol) {
@@ -427,240 +412,12 @@ bool PulseClient::populate_sources() {
   return true;
 }
 
-bool PulseClient::SetMute(Device& device, bool mute) {
-  int success;
-
-  if (device.ops_.Mute == nullptr) {
-    warnx("device does not support muting.");
-    return false;
-  }
-
-  pa_operation* op = device.ops_.Mute(context_,
-                                      device.index_,
-                                      mute,
-                                      success_cb,
-                                      &success);
-  if (!wait_for_op(op)) {
-    printf("SetMute iterate failure");
-    return false;
-  }
-
-  if (success) {
-    device.mute_ = mute;
-  }
-
-  return success;
-}
-
-bool PulseClient::SetVolume(Device& device, long volume) {
-  int success;
-
-  if (device.ops_.SetVolume == nullptr) {
-    warnx("device does not support setting volume.");
-    return false;
-  }
-
-  volume = volume_range_.Clamp(volume);
-  const pa_cvolume *cvol = value_to_cvol(volume, &device.volume_);
-  pa_operation* op = device.ops_.SetVolume(context_,
-                                           device.index_,
-                                           cvol,
-                                           success_cb,
-                                           &success);
-  if (!wait_for_op(op)) {
-    printf("SetVolume iterate failure");
-    return false;
-  }
-
-  if (success) {
-    device.update_volume(*cvol);
-  }
-
-  return success;
-}
-
-bool PulseClient::IncreaseVolume(Device& device, long increment) {
-  return SetVolume(device, device.volume_percent_ + increment);
-}
-
-bool PulseClient::DecreaseVolume(Device& device, long increment) {
-  return SetVolume(device, device.volume_percent_ - increment);
-}
-
-bool PulseClient::SetBalance(Device& device, long balance) {
-  int success;
-
-  if (device.ops_.SetVolume == nullptr) {
-    warnx("device does not support setting balance.");
-    return false;
-  }
-
-  balance = balance_range_.Clamp(balance);
-  pa_cvolume *cvol = pa_cvolume_set_balance(&device.volume_,
-                                            &device.channels_,
-                                            balance / 100.0);
-  pa_operation* op = device.ops_.SetVolume(context_,
-                                           device.index_,
-                                           cvol,
-                                           success_cb,
-                                           &success);
-  if (!wait_for_op(op)) {
-    printf("SetBalance iterate failure");
-    return false;
-  }
-
-  if (success) {
-    device.update_volume(*cvol);
-  }
-
-  return success;
-}
-
-bool PulseClient::IncreaseBalance(Device& device, long increment) {
-  return SetBalance(device, device.balance_ + increment);
-}
-
-bool PulseClient::DecreaseBalance(Device& device, long increment) {
-  return SetBalance(device, device.balance_ - increment);
-}
-
 int PulseClient::GetVolume(const Device& device) const {
   return device.Volume();
 }
 
 int PulseClient::GetBalance(const Device& device) const {
   return device.Balance();
-}
-
-bool PulseClient::SetProfile(Card& card, const string& profile) {
-  int success;
-  pa_operation* op =
-    pa_context_set_card_profile_by_index(context_,
-                                         card.index_,
-                                         profile.c_str(),
-                                         success_cb,
-                                         &success);
-  if (!wait_for_op(op)) {
-    printf("SetProfile iterate failure");
-    return false;
-  }
-
-  if (success) {
-    // Update the profile
-    for (const Profile& p : card.profiles_) {
-      if (p.name == profile) {
-        card.active_profile_ = p;
-        break;
-      }
-    }
-  }
-
-  return success;
-}
-
-bool PulseClient::Move(Device& source, Device& dest) {
-  int success;
-
-  if (source.ops_.Move == nullptr) {
-    warnx("source device does not support moving.");
-    return false;
-  }
-
-  pa_operation* op = source.ops_.Move(context_,
-                                      source.index_,
-                                      dest.index_,
-                                      success_cb,
-                                      &success);
-  if (!wait_for_op(op)) {
-    printf("Move iterate failure");
-    return false;
-  }
-
-  return success;
-}
-
-bool PulseClient::Kill(Device& device) {
-  int success;
-
-  if (device.ops_.Kill == nullptr) {
-    warnx("source device does not support being killed.");
-    return false;
-  }
-
-  pa_operation* op = device.ops_.Kill(context_,
-                                      device.index_,
-                                      success_cb,
-                                      &success);
-  if (!wait_for_op(op)) {
-    printf("Kill iterate failure");
-    return false;
-  }
-
-  if (success) remove_device(device);
-
-  return success;
-}
-
-bool PulseClient::SetDefault(Device& device) {
-  int success;
-
-  if (device.ops_.SetDefault == nullptr) {
-    warnx("device does not support defaults");
-    return false;
-  }
-
-  pa_operation* op = device.ops_.SetDefault(context_,
-                                            device.name_.c_str(),
-                                            success_cb,
-                                            &success);
-  if (!wait_for_op(op)) {
-    printf("SetDefault iterate failure");
-    return false;
-  }
-
-  if (success) {
-    switch (device.type_) {
-    case DEVTYPE_SINK:
-      defaults_.sink = device.name_;
-      break;
-    case DEVTYPE_SOURCE:
-      defaults_.source = device.name_;
-      break;
-    default:
-      errx(1, "impossible to set a default for device type %d",
-           device.type_);
-    }
-  }
-
-  return success;
-}
-
-void PulseClient::remove_device(Device& device) {
-  vector<Device>* devlist = nullptr;
-
-  switch (device.type_) {
-  case DEVTYPE_SINK:
-    devlist = &sinks_;
-    break;
-  case DEVTYPE_SINK_INPUT:
-    devlist = &sink_inputs_;
-    break;
-  case DEVTYPE_SOURCE:
-    devlist = &sources_;
-    break;
-  case DEVTYPE_SOURCE_OUTPUT:
-    devlist = &source_outputs_;
-    break;
-  default:
-      errx(1, "impossible to remove device type %d",
-           device.type_);
-      return;
-  }
-  devlist->erase(
-      std::remove_if(
-        devlist->begin(), devlist->end(),
-        [&device](Device& d) { return d.index_ == device.index_; }),
-      devlist->end());
 }
 
 //
@@ -691,12 +448,6 @@ Device::Device(const pa_sink_info* info) :
   memcpy(&channels_, &info->channel_map, sizeof(pa_channel_map));
   balance_ = pa_cvolume_get_balance(&volume_, &channels_) * 100.0;
 
-  ops_.SetVolume = pa_context_set_sink_volume_by_index;
-  ops_.Mute = pa_context_set_sink_mute_by_index;
-  ops_.Kill = nullptr;
-  ops_.Move = nullptr;
-  ops_.SetDefault = pa_context_set_default_sink;
-
   if (info->active_port) {
     switch (info->active_port->available) {
       case PA_PORT_AVAILABLE_YES:
@@ -722,12 +473,6 @@ Device::Device(const pa_source_info* info) :
   update_volume(info->volume);
   memcpy(&channels_, &info->channel_map, sizeof(pa_channel_map));
   balance_ = pa_cvolume_get_balance(&volume_, &channels_) * 100.0;
-
-  ops_.SetVolume = pa_context_set_source_volume_by_index;
-  ops_.Mute = pa_context_set_source_mute_by_index;
-  ops_.Kill = nullptr;
-  ops_.Move = nullptr;
-  ops_.SetDefault = pa_context_set_default_source;
 }
 
 Device::Device(const pa_sink_input_info* info) :
@@ -743,12 +488,6 @@ Device::Device(const pa_sink_input_info* info) :
   const char *desc = pa_proplist_gets(info->proplist,
                                       PA_PROP_APPLICATION_NAME);
   if (desc) desc_ = desc;
-
-  ops_.SetVolume = pa_context_set_sink_input_volume;
-  ops_.Mute = pa_context_set_sink_input_mute;
-  ops_.Kill = pa_context_kill_sink_input;
-  ops_.Move = pa_context_move_sink_input_by_index;
-  ops_.SetDefault = nullptr;
 }
 
 Device::Device(const pa_source_output_info* info) :
@@ -764,12 +503,6 @@ Device::Device(const pa_source_output_info* info) :
   const char *desc = pa_proplist_gets(info->proplist,
                                       PA_PROP_APPLICATION_NAME);
   if (desc) desc_ = desc;
-
-  ops_.SetVolume = pa_context_set_source_output_volume;
-  ops_.Mute = pa_context_set_source_output_mute;
-  ops_.Kill = pa_context_kill_source_output;
-  ops_.Move = pa_context_move_source_output_by_index;
-  ops_.SetDefault = nullptr;
 }
 
 void Device::update_volume(const pa_cvolume& newvol) {

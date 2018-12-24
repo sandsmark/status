@@ -232,7 +232,7 @@ class PulseClient {
   bool populate_sinks();
  private:
   bool init();
-  bool mainloop_iterate(pa_operation* op);
+  bool wait_for_op(pa_operation* op);
   template<class T> T* find_fuzzy(vector<T>& haystack, const string& needle);
 
   bool populate_cards();

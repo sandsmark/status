@@ -329,13 +329,11 @@ static void print_time(time_t offset = 0) {
 static void print_volume(PulseClient &client)
 {
     print_sep();
-    client.populate_server_info();
-    client.populate_sinks();
-    ServerInfo defaults = client.GetDefaults();
-    Device *device = client.GetSink(defaults.sink);
+    client.Populate();
+    const Sink *device = client.GetDefaultSink();
     if (!device) {
         print_sep();
-        printf("couldn't find device: %s", defaults.sink.c_str());
+        printf("couldn't find default sink");
         print_red();
         return;
     }

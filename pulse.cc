@@ -302,6 +302,8 @@ bool PulseClient::mainloop_iterate(pa_operation* op) {
     }
   }
 
+  pa_operation_unref(op);
+
   return true;
 }
 
@@ -334,10 +336,7 @@ bool PulseClient::populate_cards() {
     printf("unable to get pa_context_get_card_info_list");
     return false;
   }
-  if (mainloop_iterate(op)) {
-    pa_operation_unref(op);
-  } else {
-    printf("failure to pa_context_get_card_info_list");
+  if (!mainloop_iterate(op)) {
     return false;
   }
 
@@ -359,9 +358,7 @@ bool PulseClient::populate_server_info() {
     return false;
   }
 
-  if (mainloop_iterate(op)) {
-    pa_operation_unref(op);
-  } else {
+  if (!mainloop_iterate(op)) {
     printf("pa_context_get_server_info iterate failure");
     return false;
   }
@@ -376,8 +373,10 @@ bool PulseClient::populate_sinks() {
     printf("unable to get pa_context_get_sink_info_list");
     return false;
   }
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("populate_sinks iterate failure");
+    return false;
+  }
 
   vector<Device> sink_inputs;
   op = pa_context_get_sink_input_info_list(
@@ -386,8 +385,10 @@ bool PulseClient::populate_sinks() {
     printf("unable to get pa_context_get_sink_input_info_list");
     return false;
   }
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("populate_sinks iterate failure");
+    return false;
+  }
 
   using std::swap;
   swap(sinks, sinks_);
@@ -403,8 +404,10 @@ bool PulseClient::populate_sources() {
     printf("unable to get pa_context_get_source_info_list");
     return false;
   }
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("populate_sources iterate failure");
+    return false;
+  }
 
   vector<Device> source_outputs;
   op = pa_context_get_source_output_info_list(
@@ -413,8 +416,10 @@ bool PulseClient::populate_sources() {
     printf("unable to get pa_context_get_source_info_list");
     return false;
   }
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("populate_sources iterate failure");
+    return false;
+  }
 
   using std::swap;
   swap(sources, sources_);
@@ -435,8 +440,10 @@ bool PulseClient::SetMute(Device& device, bool mute) {
                                       mute,
                                       success_cb,
                                       &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("SetMute iterate failure");
+    return false;
+  }
 
   if (success) {
     device.mute_ = mute;
@@ -460,8 +467,10 @@ bool PulseClient::SetVolume(Device& device, long volume) {
                                            cvol,
                                            success_cb,
                                            &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("SetVolume iterate failure");
+    return false;
+  }
 
   if (success) {
     device.update_volume(*cvol);
@@ -495,8 +504,10 @@ bool PulseClient::SetBalance(Device& device, long balance) {
                                            cvol,
                                            success_cb,
                                            &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("SetBalance iterate failure");
+    return false;
+  }
 
   if (success) {
     device.update_volume(*cvol);
@@ -529,8 +540,10 @@ bool PulseClient::SetProfile(Card& card, const string& profile) {
                                          profile.c_str(),
                                          success_cb,
                                          &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("SetProfile iterate failure");
+    return false;
+  }
 
   if (success) {
     // Update the profile
@@ -558,8 +571,10 @@ bool PulseClient::Move(Device& source, Device& dest) {
                                       dest.index_,
                                       success_cb,
                                       &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("Move iterate failure");
+    return false;
+  }
 
   return success;
 }
@@ -576,8 +591,10 @@ bool PulseClient::Kill(Device& device) {
                                       device.index_,
                                       success_cb,
                                       &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("Kill iterate failure");
+    return false;
+  }
 
   if (success) remove_device(device);
 
@@ -596,8 +613,10 @@ bool PulseClient::SetDefault(Device& device) {
                                             device.name_.c_str(),
                                             success_cb,
                                             &success);
-  mainloop_iterate(op);
-  pa_operation_unref(op);
+  if (!mainloop_iterate(op)) {
+    printf("SetDefault iterate failure");
+    return false;
+  }
 
   if (success) {
     switch (device.type_) {

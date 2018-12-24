@@ -16,14 +16,8 @@
 
 namespace {
 static void connect_state_cb(pa_context* context, void* raw) {
-  try {
     enum pa_context_state *state = static_cast<enum pa_context_state*>(raw);
     *state = pa_context_get_state(context);
-  } catch (const std::exception &e) {
-    printf("PA connect_state_cb exception: %s", e.what());
-  } catch (...) {
-    printf("PA connect_state_cb unknown exception");
-  }
 }
 
 static void success_cb(pa_context* context, int success, void* raw) {
@@ -294,26 +288,18 @@ Device* PulseClient::GetSourceOutput(const string& name) {
 }
 
 bool PulseClient::mainloop_iterate(pa_operation* op) {
-  try {
-    int r = 0, ret;
-    while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
-      ret = pa_mainloop_iterate(mainloop_, 1, &r) < 0;
-      if (ret < 0) {
-        fprintf(stderr, "PA error while iterating: %d\n", ret);
-        return false;
-      }
-      if (r < 0) {
-        fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
-        //init();
-        return false;
-      }
+  int r = 0, ret;
+  while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
+    ret = pa_mainloop_iterate(mainloop_, 1, &r) < 0;
+    if (ret < 0) {
+      fprintf(stderr, "PA error while iterating: %d\n", ret);
+      return false;
     }
-  } catch (const std::exception &e) {
-    printf("PA connect_state_cb exception: %s", e.what());
-    return false;
-  } catch (...) {
-    printf("PA connect_state_cb unknown exception");
-    return false;
+    if (r < 0) {
+      fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
+      //init();
+      return false;
+    }
   }
 
   return true;
@@ -340,96 +326,72 @@ T* PulseClient::find_fuzzy(vector<T>& haystack, const string& needle) {
 }
 
 bool PulseClient::populate_cards() {
-  try {
-    vector<Card> cards;
-    pa_operation* op = pa_context_get_card_info_list(context_,
-        card_info_cb,
-        static_cast<void*>(&cards));
-    if (!op) {
-      printf("unable to get pa_context_get_card_info_list");
-      return false;
-    }
-    if (mainloop_iterate(op)) {
-      pa_operation_unref(op);
-    } else {
-      printf("failure to pa_context_get_card_info_list");
-      return false;
-    }
-
-
-    using std::swap;
-    swap(cards, cards_);
-  } catch (const std::exception &e) {
-    printf("PA connect_state_cb exception: %s", e.what());
-    return false;
-  } catch (...) {
-    printf("PA connect_state_cb unknown exception");
+  vector<Card> cards;
+  pa_operation* op = pa_context_get_card_info_list(context_,
+      card_info_cb,
+      static_cast<void*>(&cards));
+  if (!op) {
+    printf("unable to get pa_context_get_card_info_list");
     return false;
   }
+  if (mainloop_iterate(op)) {
+    pa_operation_unref(op);
+  } else {
+    printf("failure to pa_context_get_card_info_list");
+    return false;
+  }
+
+
+  using std::swap;
+  swap(cards, cards_);
   return true;
 }
 
 bool PulseClient::populate_server_info() {
-  try {
-    pa_operation* op = pa_context_get_server_info(context_,
-        server_info_cb,
-        &defaults_);
-    if (!op) {
-      fprintf(stderr, "unable to get pa_context_get_server_info\n");
-      if (!init()) {
-        fprintf(stderr, "unable to reinit pulseaudio!\n");
-      }
-      return false;
+  pa_operation* op = pa_context_get_server_info(context_,
+      server_info_cb,
+      &defaults_);
+  if (!op) {
+    fprintf(stderr, "unable to get pa_context_get_server_info\n");
+    if (!init()) {
+      fprintf(stderr, "unable to reinit pulseaudio!\n");
     }
-
-    if (mainloop_iterate(op)) {
-        pa_operation_unref(op);
-    } else {
-      printf("pa_context_get_server_info iterate failure");
-      return false;
-    }
-  } catch (const std::exception &e) {
-    printf("PA connect_state_cb exception: %s", e.what());
     return false;
-  } catch (...) {
-    printf("PA connect_state_cb unknown exception");
+  }
+
+  if (mainloop_iterate(op)) {
+    pa_operation_unref(op);
+  } else {
+    printf("pa_context_get_server_info iterate failure");
     return false;
   }
   return true;
 }
 
 bool PulseClient::populate_sinks() {
-  try {
-    vector<Device> sinks;
-    pa_operation* op = pa_context_get_sink_info_list(
-        context_, device_info_cb, static_cast<void*>(&sinks));
-    if (!op) {
-      printf("unable to get pa_context_get_sink_info_list");
-      return false;
-    }
-    mainloop_iterate(op);
-    pa_operation_unref(op);
-
-    vector<Device> sink_inputs;
-    op = pa_context_get_sink_input_info_list(
-        context_, device_info_cb, static_cast<void*>(&sink_inputs));
-    if (!op) {
-      printf("unable to get pa_context_get_sink_input_info_list");
-      return false;
-    }
-    mainloop_iterate(op);
-    pa_operation_unref(op);
-
-    using std::swap;
-    swap(sinks, sinks_);
-    swap(sink_inputs, sink_inputs_);
-  } catch (const std::exception &e) {
-    printf("PA connect_state_cb exception: %s", e.what());
-    return false;
-  } catch (...) {
-    printf("PA connect_state_cb unknown exception");
+  vector<Device> sinks;
+  pa_operation* op = pa_context_get_sink_info_list(
+      context_, device_info_cb, static_cast<void*>(&sinks));
+  if (!op) {
+    printf("unable to get pa_context_get_sink_info_list");
     return false;
   }
+  mainloop_iterate(op);
+  pa_operation_unref(op);
+
+  vector<Device> sink_inputs;
+  op = pa_context_get_sink_input_info_list(
+      context_, device_info_cb, static_cast<void*>(&sink_inputs));
+  if (!op) {
+    printf("unable to get pa_context_get_sink_input_info_list");
+    return false;
+  }
+  mainloop_iterate(op);
+  pa_operation_unref(op);
+
+  using std::swap;
+  swap(sinks, sinks_);
+  swap(sink_inputs, sink_inputs_);
   return true;
 }
 

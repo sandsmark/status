@@ -142,6 +142,7 @@ bool PulseClient::init()
       return false;
     }
   }
+  pa_context_set_state_callback(context_, nullptr, nullptr);
 
   if (state != PA_CONTEXT_READY) {
     fprintf(stderr, "failed to connect to pulse daemon: %s\n",

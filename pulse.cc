@@ -69,12 +69,10 @@ static int xstrtol(const char *str, long *out) {
 
 PulseClient::PulseClient(string client_name) :
     client_name_(client_name),
-    mainloop_(nullptr)
+    context_(nullptr),
+    mainloop_(nullptr),
+    state_(PA_CONTEXT_UNCONNECTED)
 {
-
-  if (!init()) {
-    exit(EXIT_FAILURE);
-  }
 }
 
 bool PulseClient::init()
@@ -88,7 +86,10 @@ bool PulseClient::init()
   pa_proplist_sets(proplist, PA_PROP_APPLICATION_ICON_NAME, "audio-card");
 
   if (mainloop_) {
+    pa_context_unref(context_);
+    context_ = nullptr;
     pa_mainloop_free(mainloop_);
+    mainloop_ = nullptr;
   }
   mainloop_ = pa_mainloop_new();
   context_ = pa_context_new_with_proplist(pa_mainloop_get_api(mainloop_),
@@ -119,11 +120,21 @@ bool PulseClient::init()
 // Pulse Client
 //
 PulseClient::~PulseClient() {
+  fprintf(stderr, "goodbye, PA\n");
   pa_context_unref(context_);
+  pa_mainloop_quit(mainloop_, 0);
   pa_mainloop_free(mainloop_);
 }
 
 void PulseClient::Populate() {
+  if (state_ != PA_CONTEXT_READY) {
+    fprintf(stderr, "reinit pulseaudio!\n");
+    if (!init()) {
+      fprintf(stderr, "failed reinit pulseaudio!\n");
+      return;
+    }
+  }
+
   if (!populate_server_info()) {
     return;
   }
@@ -170,7 +181,6 @@ bool PulseClient::wait_for_op(pa_operation* op) {
     }
     if (r < 0) {
       fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
-      //init();
       return false;
     }
   }
@@ -186,9 +196,6 @@ bool PulseClient::populate_server_info() {
       &default_sink_);
   if (!op) {
     fprintf(stderr, "unable to get pa_context_get_server_info\n");
-    if (!init()) {
-      fprintf(stderr, "unable to reinit pulseaudio!\n");
-    }
     return false;
   }
 
@@ -196,6 +203,7 @@ bool PulseClient::populate_server_info() {
     printf("pa_context_get_server_info iterate failure");
     return false;
   }
+
   return true;
 }
 

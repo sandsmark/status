@@ -345,6 +345,8 @@ static void print_volume(PulseClient &client)
     }
 }
 
+static bool g_running = true;
+
 int main() {
     PulseClient client("status");
 
@@ -355,9 +357,15 @@ int main() {
     };
     sigaction(SIGPIPE, &sa, nullptr);
 
+    // Can't capture here, hence global static
+    sa.sa_handler = [](int) {
+        g_running = false;
+    };
+    sigaction(SIGINT, &sa, nullptr);
+
     printf("{ \"version\": 1 }\n[\n");
 
-    while (true) {
+    while (g_running) {
         printf(" [ { \"full_text\": \"");
         print_battery();
         print_disk_info("/");

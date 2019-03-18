@@ -321,7 +321,7 @@ static void print_time(time_t offset = 0) {
         now += offset;
         strftime(buf, sizeof buf, "%H:%M", localtime(&now));
     } else {
-        strftime(buf, sizeof buf, "week %W %a %F %T", localtime(&now));
+        strftime(buf, sizeof buf, "week %V %a %F %T", localtime(&now));
     }
     fputs(buf, stdout);
 }

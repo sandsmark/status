@@ -1,7 +1,7 @@
 CCFILES=$(wildcard *.cc)
 CXXFLAGS += -g -fPIC -std=c++17 -DSTATUS_VERSION=\"0.1\" -O1 -Wall -Wextra -pedantic
 OBJECTS=$(patsubst %.cc, %.o, $(CCFILES))
-LDFLAGS=-lpulse -lsystemd -g
+LDFLAGS=-lpulse -lsystemd -ludev -g
 
 CXXFLAGS += -fsanitize=undefined -fsanitize=address
 LDFLAGS += -fsanitize=undefined -fsanitize=address

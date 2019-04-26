@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <systemd/sd-bus.h>
+#include <libudev.h>
 
 #include "pulse.h"
 
@@ -36,7 +37,7 @@ inline void print_gray()
 
 inline void print_red()
 {
-    printf("\", \"color\": \"#ff0000");
+    printf("\", \"color\": \"#ff9999");
 }
 
 inline void print_yellow()
@@ -96,28 +97,111 @@ static void do_suspend()
     sd_bus_unref(bus);
 }
 
-static void print_battery() {
-    FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
-    if (!file) {
-        printf("failed to open file for battery");
+static bool g_udevAvailable = false;
+
+static void print_battery(udev_device *udevDevice)
+{
+    bool chargerOnline = false;
+    bool batteryCharging = false;
+    unsigned long percentage = 0;
+    bool udevValuesValid = false;
+
+    static bool preUdevConnected = false;
+
+    if (g_udevAvailable) {
+        static int udevChargerOnline = -1;
+        static int udevBatteryCharging = -1;
+        static int udevPercentage = -1;
+
+        if (udevDevice) {
+            //printf("action: %s\n", udev_device_get_action(udevDevice));
+            //printf("sysname: %s\n", udev_device_get_sysname(udevDevice));
+            //{
+            //    udev_list_entry *entry = udev_device_get_properties_list_entry(udevDevice);
+            //    while (entry) {
+            //        const char *name = udev_list_entry_get_name(entry);
+            //        const char *value = udev_list_entry_get_value(entry);
+            //        printf("property name: %s value %s\n", name, value);
+            //        entry = udev_list_entry_get_next(entry);
+            //    }
+            //}
+
+            const char *deviceName = udev_device_get_sysname(udevDevice);
+            if (strcmp(deviceName, "BAT0") == 0) {
+                const char *chargingStatus = udev_device_get_property_value(udevDevice, "POWER_SUPPLY_STATUS");
+                if (strcmp(chargingStatus, "Charging") == 0) {
+                    udevBatteryCharging = 1;
+                } else if (strcmp(chargingStatus, "Discharging") == 0) {
+                    udevBatteryCharging = 0;
+                } else {
+                    udevBatteryCharging = udevChargerOnline;
+                    fprintf(stderr, "unknown status %s\n", chargingStatus);
+                }
+                if (preUdevConnected) {
+                    udevBatteryCharging = !udevBatteryCharging;
+                }
+
+                udevPercentage = atoi(udev_device_get_property_value(udevDevice, "POWER_SUPPLY_CAPACITY"));
+            } else if (strcmp(deviceName, "AC") == 0) {
+                const char *online = udev_device_get_property_value(udevDevice, "POWER_SUPPLY_ONLINE");
+                if (strcmp(online, "1") == 0) {
+                    udevChargerOnline = 1;
+                } else if (strcmp(online, "0") == 0) {
+                    udevChargerOnline = 0;
+                } else {
+                    fprintf(stderr, "unknown charger online %s\n", online);
+                }
+            }
+        }
+
+        if (udevChargerOnline != -1 && udevBatteryCharging != -1 && udevPercentage != -1) {
+            chargerOnline = udevChargerOnline;
+            batteryCharging = udevBatteryCharging; // udev is inverted?
+            percentage = udevPercentage;
+            udevValuesValid = true;
+        }
+    }
+    bool isCharging = batteryCharging;
+
+    if (!udevValuesValid) {
+        //fprintf(stderr, "udev invalid\n");
+        FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
+        if (!file) {
+            printf("failed to open file for battery");
+            return;
+        }
+        unsigned long energy_now;
+        fscanf(file, "%lu", &energy_now);
+        fclose(file);
+        file = fopen("/sys/class/power_supply/BAT0/energy_full", "r");
+        unsigned long energy_full;
+        fscanf(file, "%lu", &energy_full);
+        fclose(file);
+
+        percentage = energy_now * 100 / energy_full;
+
+        file = fopen("/sys/class/power_supply/BAT0/status", "rw");
+        char *line = nullptr;
+        size_t len;
+        getline(&line, &len, file);
+        fclose(file);
+        if (strcmp(line, "Charging\n") == 0) {
+            isCharging = true;
+            preUdevConnected = true;
+        }
+        free(line);
+    }
+
+    //if (percentage > 97) {
+    //    return;
+    //}
+    //}
+
+    if (chargerOnline && percentage > 97) {
         return;
     }
-    unsigned long energy_now;
-    fscanf(file, "%lu", &energy_now);
-    fclose(file);
-    file = fopen("/sys/class/power_supply/BAT0/energy_full", "r");
-    unsigned long energy_full;
-    fscanf(file, "%lu", &energy_full);
-    fclose(file);
 
-    unsigned long percentage = energy_now * 100 / energy_full;
-
-    file = fopen("/sys/class/power_supply/BAT0/status", "rw");
-    char *line = nullptr;
-    size_t len;
-    getline(&line, &len, file);
-    fclose(file);
-    if (strcmp(line, "Charging\n") == 0) {
+    if (isCharging) {
         printf("charging: %lu%%", percentage);
         print_gray();
     } else {
@@ -138,7 +222,8 @@ static void print_battery() {
             print_gray();
         }
     }
-    free(line);
+
+    print_sep();
 }
 
 static unsigned s_cpu_high_seconds = 0;
@@ -424,6 +509,24 @@ static void print_volume(PulseClient &client)
 static bool g_running = true;
 
 int main() {
+    int udevSocketFd = -1;
+    udev *udevConnection = udev_new();
+    udev_monitor *udevMonitor = nullptr;
+    if (udevConnection) {
+        udevMonitor = udev_monitor_new_from_netlink(udevConnection, "udev");
+    } else {
+        fprintf(stderr, "Failed to connect to udev\n");
+    }
+
+    if (udevMonitor) {
+        udev_monitor_filter_add_match_subsystem_devtype(udevMonitor, "power_supply", 0);
+        udev_monitor_enable_receiving(udevMonitor);
+        udevSocketFd = udev_monitor_get_fd(udevMonitor);
+        g_udevAvailable = true;
+    } else {
+        fprintf(stderr, "Failed to create udev monitor\n");
+    }
+
     PulseClient client("status");
 
     struct sigaction sa = {};
@@ -441,10 +544,11 @@ int main() {
 
     printf("{ \"version\": 1 }\n[\n");
 
-    struct timespec ts;
+    udev_device *udevDevice = nullptr;
     while (g_running) {
         printf(" [ { \"full_text\": \"");
-        print_battery();
+        print_battery(udevDevice);
+        print_disk_info("/");
         print_sep();
         print_disk_info("/");
         print_net_usage("enp0s31f6");
@@ -466,17 +570,57 @@ int main() {
         printf("\" } ],\n");
         fflush(stdout);
 
-        // sleep until the next second
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
-            perror("clock_gettime");
-            return 1;
+        if (udevDevice) {
+            udev_device_unref(udevDevice);
+            udevDevice = nullptr;
         }
-        ts.tv_sec++;
-        if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr) == -1) {
-            perror("clock_nanosleep");
-            return 1;
+
+        if (g_udevAvailable) {
+            fd_set fdset;
+            FD_ZERO(&fdset);
+            FD_SET(udevSocketFd, &fdset);
+
+            timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 1000000; // 1s
+
+            if (select(udevSocketFd + 1, &fdset, 0, 0, &timeout) == -1) {
+                if (errno != EINTR) {
+                    perror("select failed");
+                    g_udevAvailable = false;
+                }
+                fprintf(stderr, "select error: %s %d\n", strerror(errno), errno);
+            }
+
+            if (errno == 0 && FD_ISSET(udevSocketFd, &fdset)) {
+                // "consume" the event, so we don't get pinged with the same event again
+                udevDevice = udev_monitor_receive_device(udevMonitor);
+                if (udevDevice) {
+                } else {
+                    perror("failed to read udev device with event from udevMonitor");
+                    fprintf(stderr, "error: %s %d\n", strerror(errno), errno);
+                    g_udevAvailable = false;
+                }
+            }
+        } else { // fallback if udev is unavailable
+            // sleep until the next second
+            struct timespec ts;
+            if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+                perror("clock_gettime");
+                return 1;
+            }
+            ts.tv_sec++;
+            if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr) == -1) {
+                perror("clock_nanosleep");
+                return 1;
+            }
         }
     }
 
-    return 0;
+    if (udevMonitor) {
+        udev_monitor_unref(udevMonitor);
+    }
+    if (udevConnection) {
+        udev_unref(udevConnection);
+    }
 }

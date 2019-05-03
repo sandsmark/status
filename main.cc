@@ -21,9 +21,9 @@ inline void print_sep() {
            "  {   \"full_text\": \"");
 }
 
-inline void print_black()
+inline void print_gray()
 {
-    printf("\", \"color\": \"#000000");
+    printf("\", \"color\": \"#666666");
 }
 
 inline void print_red()
@@ -53,6 +53,8 @@ static void print_disk_info(const char *path) {
         print_red();
     } else if (gb_free < 5) {
         print_yellow();
+    } else {
+        print_gray();
     }
 }
 
@@ -113,6 +115,7 @@ static void print_battery() {
     fclose(file);
     if (strcmp(line, "Charging\n") == 0) {
         printf("charging: %lu%%", percentage);
+        print_gray();
     } else {
         static unsigned long last_percentage = 100;
         if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
@@ -127,6 +130,8 @@ static void print_battery() {
             print_yellow();
         } else if (percentage < 30) {
             print_green();
+        } else if (percentage > 90) {
+            print_gray();
         }
     }
     free(line);
@@ -140,7 +145,7 @@ static void print_cpu()
 {
     FILE *fp = fopen("/proc/stat", "r");
     if (!fp) {
-        printf("net: error opening /proc/stat: %m");
+        printf("cpu: error opening /proc/stat: %m");
         return;
     }
     unsigned user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice;
@@ -168,10 +173,13 @@ static void print_cpu()
     } else {
         s_cpu_high_seconds = 0;
     }
+
     if (s_cpu_high_seconds > 120) {
         print_red();
     } else if (s_cpu_high_seconds > 30) {
         print_yellow();
+    } else {
+        print_gray();
     }
 
 }
@@ -188,7 +196,7 @@ static void print_load() {
     if (loadavg > 2 && s_cpu_high_seconds < 30) {
         print_yellow();
     } else if (loadavg < 1) {
-        //print_black();
+        print_gray();
     }
     print_sep();
 }
@@ -215,7 +223,7 @@ static void print_wifi_strength() {
 
     FILE *fp = fopen("/proc/net/wireless", "r");
     if (!fp) {
-        printf("net: error opening /proc/net/wireless: %m");
+        printf("wifi: error opening /proc/net/wireless: %m");
         return;
     }
 
@@ -308,6 +316,8 @@ static void print_mem() {
     printf("mem: %.0f%%", percentage);
     if (percentage > 80) {
         print_red();
+    } else if (percentage < 20) {
+        print_gray();
     }
 
     fclose(fp);
@@ -320,10 +330,16 @@ static void print_time(time_t offset = 0) {
     if (offset) {
         now += offset;
         strftime(buf, sizeof buf, "%H:%M", localtime(&now));
+        fputs(buf, stdout);
+        print_gray();
     } else {
-        strftime(buf, sizeof buf, "week %V %a %F %T", localtime(&now));
+        strftime(buf, sizeof buf, "week %V %a %F", localtime(&now));
+        fputs(buf, stdout);
+        print_gray();
+        print_sep();
+        strftime(buf, sizeof buf, "%T", localtime(&now));
+        fputs(buf, stdout);
     }
-    fputs(buf, stdout);
 }
 
 static void print_volume(PulseClient &client)
@@ -338,10 +354,10 @@ static void print_volume(PulseClient &client)
         return;
     }
 
-    if (!device->Muted()) {
-        print_sep();
-        printf("vol: %3d%%", device->Volume());
-        print_green();
+    printf("vol: %3d%%", device->Volume());
+
+    if (device->Muted()) {
+        print_gray();
     }
 }
 

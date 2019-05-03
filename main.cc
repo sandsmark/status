@@ -379,10 +379,6 @@ int main() {
         print_cpu();
         print_volume(client);
         print_sep();
-        print_time(-4 * 3600);
-        print_sep();
-        print_time(8 * 3600);
-        print_sep();
         print_time();
         printf("\" } ],\n");
         fflush(stdout);

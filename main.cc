@@ -304,25 +304,27 @@ static bool print_net_usage(const std::string &device) {
         rx_delta += rx[i + 1] - rx[i];
         tx_delta += tx[i + 1] - tx[i];
     }
+    rx_delta /= net_samples + 1;
+    tx_delta /= net_samples + 1;
 
-    rx_delta /= 1000;
-    tx_delta /= 1000;
+    rx_delta /= 1024;
+    tx_delta /= 1024;
 
     print_sep();
 
     if (rx_delta > 100) {
-        printf("rx: %5.1fmb ", rx_delta/1000.);
+        printf("rx: %5.1fmb ", rx_delta/1024.);
     } else {
         printf("rx: %5lukb ", rx_delta);
     }
 
     if (tx_delta > 100) {
-        printf("tx: %5.1fmb", tx_delta / 1000.);
+        printf("tx: %5.1fmb", tx_delta / 1024.);
     } else {
         printf("tx: %5lukb", tx_delta);
     }
 
-    if (rx_delta < 5 && tx_delta < 5) {
+    if (rx_delta < 512 && tx_delta < 512) {
         print_gray();
     }
 
@@ -445,9 +447,9 @@ int main() {
         print_sep();
         if (print_net_usage("wlp3s0")) {
             print_sep();
-            print_wifi_strength();
-            print_sep();
         }
+        print_wifi_strength();
+        print_sep();
         print_load();
         print_sep();
         print_mem();

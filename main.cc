@@ -28,7 +28,7 @@ inline void print_sep() {
 
 inline void print_gray()
 {
-    printf("\", \"color\": \"#666666");
+    printf("\", \"color\": \"#aaaaaa");
 }
 
 inline void print_red()

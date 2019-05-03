@@ -6,13 +6,15 @@
 #include <string.h>
 #include <sys/statvfs.h>
 #include <time.h>
+#include <unordered_map>
+#include <unordered_set>
 #include <systemd/sd-bus.h>
 
 #include "pulse.h"
 
 // number of samples to average
 // setting it to 1 disables averaging
-const unsigned net_samples = 2;
+const unsigned net_samples = 10;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
 inline void print_sep() {
@@ -135,8 +137,6 @@ static void print_battery() {
         }
     }
     free(line);
-
-    print_sep();
 }
 
 static unsigned s_cpu_high_seconds = 0;
@@ -198,7 +198,6 @@ static void print_load() {
     } else if (loadavg < 1) {
         print_gray();
     }
-    print_sep();
 }
 static void print_wifi_strength() {
     {
@@ -245,42 +244,55 @@ static void print_wifi_strength() {
     } else {
         printf("wifi: %3d%%", strength * 100 / 70);
         if (strength > 30) {
-            //print_black();
+            print_gray();
         }
     }
-    print_sep();
 }
 
-static void print_net_usage() {
-    FILE *fp = fopen("/proc/net/dev", "r");
-    if (!fp) {
-        printf("net: error opening /proc/net/dev: %m");
-        return;
+static bool print_net_usage(const std::string &device) {
+    {
+        FILE *fp = fopen(("/sys/class/net/" + device + "/carrier").c_str(), "r");
+        if (!fp) {
+            return false;
+        }
+
+        char line[1]{};
+        if (fread(line, 1, 1, fp) != 1) {
+            return false;
+        }
+        fclose(fp);
+        if (line[0] != '1') {
+            return false;
+        }
     }
 
-    static unsigned long rx[1 + net_samples];
-    static unsigned long tx[1 + net_samples];
+    FILE *fp = fopen("/proc/net/dev", "r");
+    if (!fp) {
+        return false;
+    }
+
+    static std::unordered_map<std::string, std::array<unsigned long, 1 + net_samples>> rx_map;
+    static std::unordered_map<std::string, std::array<unsigned long, 1 + net_samples>> tx_map;
+    size_t *rx = rx_map[device].data();
+    size_t *tx = tx_map[device].data();
 
     char *ln = nullptr;
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp3s0: %lu %*u %*u %*u %*u %*u %*u %*u %lu",
+        if (sscanf(ln, (" " + device + ": %lu %*u %*u %*u %*u %*u %*u %*u %lu").c_str(),
                    &rx[net_samples], &tx[net_samples]) == 2) {
-            // switch to kB
-            rx[net_samples] /= 1024;
-            tx[net_samples] /= 1024;
             break;
         }
     }
     free(ln);
     fclose(fp);
 
-    static bool first_run = true;
-    if (first_run) {
+    static std::unordered_set<std::string> inited;
+    if (inited.find(device) == inited.end()) {
         for (unsigned i = 0; i < net_samples; i++) {
             rx[i] = rx[net_samples];
             tx[i] = tx[net_samples];
         }
-        first_run = false;
+        inited.insert(device);
     }
 
     unsigned long rx_delta = 0;
@@ -290,10 +302,31 @@ static void print_net_usage() {
         tx_delta += tx[i + 1] - tx[i];
     }
 
-    printf("rx: %4lukb tx: %4lukb", rx_delta / net_samples, tx_delta / net_samples);
+    rx_delta /= 1000;
+    tx_delta /= 1000;
+
+    print_sep();
+
+    if (rx_delta > 100) {
+        printf("rx: %5.1fmb ", rx_delta/1000.);
+    } else {
+        printf("rx: %5lukb ", rx_delta);
+    }
+
+    if (tx_delta > 100) {
+        printf("tx: %5.1fmb", tx_delta / 1000.);
+    } else {
+        printf("tx: %5lukb", tx_delta);
+    }
+
+    if (rx_delta < 5 && tx_delta < 5) {
+        print_gray();
+    }
 
     memmove(rx, rx + 1, sizeof rx[0] * net_samples);
     memmove(tx, tx + 1, sizeof tx[0] * net_samples);
+
+    return true;
 }
 
 static void print_mem() {
@@ -344,11 +377,9 @@ static void print_time(time_t offset = 0) {
 
 static void print_volume(PulseClient &client)
 {
-    print_sep();
     client.Populate();
     const Sink *device = client.GetDefaultSink();
     if (!device) {
-        print_sep();
         printf("couldn't find default sink");
         print_red();
         return;
@@ -384,15 +415,21 @@ int main() {
     while (g_running) {
         printf(" [ { \"full_text\": \"");
         print_battery();
+        print_sep();
         print_disk_info("/");
+        print_net_usage("enp0s31f6");
         print_sep();
-        print_net_usage();
-        print_sep();
+        if (print_net_usage("wlp3s0")) {
+            print_sep();
+        }
         print_wifi_strength();
+        print_sep();
         print_load();
+        print_sep();
         print_mem();
         print_sep();
         print_cpu();
+        print_sep();
         print_volume(client);
         print_sep();
         print_time();

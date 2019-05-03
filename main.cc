@@ -14,7 +14,7 @@
 
 // number of samples to average
 // setting it to 1 disables averaging
-const unsigned net_samples = 10;
+const unsigned net_samples = 5;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
 inline void print_sep() {
@@ -421,9 +421,9 @@ int main() {
         print_sep();
         if (print_net_usage("wlp3s0")) {
             print_sep();
+            print_wifi_strength();
+            print_sep();
         }
-        print_wifi_strength();
-        print_sep();
         print_load();
         print_sep();
         print_mem();

@@ -17,6 +17,9 @@
 const unsigned net_samples = 5;
 static_assert(net_samples > 1, "net_samples must be greater than 0");
 
+const unsigned mem_samples = 5;
+static_assert(mem_samples > 1, "mem_samples must be greater than 0");
+
 inline void print_sep() {
     printf("\""
            "  },"
@@ -344,12 +347,33 @@ static void print_mem() {
         sscanf(line, "MemAvailable: %lu kB", &memavailable);
     }
 
-    unsigned long used = memtotal - memavailable;
+    const long used = memtotal - memavailable;
+
+    static long last_used[1 + mem_samples];
+
+    static bool first_run = true;
+    if (first_run) {
+        for (unsigned i = 0; i < mem_samples; i++) {
+            last_used[i] = used;
+        }
+        first_run = false;
+    }
+
+    long accum = used;
+    for (unsigned i=0; i<mem_samples; i++) {
+        accum += last_used[i];
+    }
+    accum /= mem_samples + 1;
+
+    last_used[mem_samples] = used;
+    memmove(last_used, last_used + 1, sizeof last_used[0] * mem_samples);
+
     double percentage = used * 100.0 / memtotal;
     printf("mem: %.0f%%", percentage);
-    if (percentage > 80) {
+
+    if (percentage > 80 || used - accum > 1024 * 512) {
         print_red();
-    } else if (percentage < 20) {
+    } else if (percentage < 40) {
         print_gray();
     }
 

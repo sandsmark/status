@@ -249,25 +249,26 @@ static void print_wifi_strength() {
 }
 
 static bool print_net_usage(const std::string &device) {
+    static std::unordered_set<std::string> inited;
+
     {
         FILE *fp = fopen(("/sys/class/net/" + device + "/carrier").c_str(), "r");
         if (!fp) {
+            inited.erase(device);
             return false;
         }
 
         const char status = getc(fp);
-        if (status != '1') {
-            fclose(fp);
-            return false;
-        }
         fclose(fp);
         if (status != '1') {
+            inited.erase(device);
             return false;
         }
     }
 
     FILE *fp = fopen("/proc/net/dev", "r");
     if (!fp) {
+        inited.erase(device);
         return false;
     }
 
@@ -286,7 +287,6 @@ static bool print_net_usage(const std::string &device) {
     free(ln);
     fclose(fp);
 
-    static std::unordered_set<std::string> inited;
     if (inited.find(device) == inited.end()) {
         for (unsigned i = 0; i < net_samples; i++) {
             rx[i] = rx[net_samples];

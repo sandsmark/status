@@ -257,6 +257,7 @@ static bool print_net_usage(const std::string &device) {
 
         char line[1]{};
         if (fread(line, 1, 1, fp) != 1) {
+            fclose(fp);
             return false;
         }
         fclose(fp);

@@ -1,5 +1,5 @@
 CCFILES=$(wildcard *.cc)
-CXXFLAGS += -ggdb -fPIC -std=c++11 -DSTATUS_VERSION=\"0.1\" -O2 -Wall -Wextra
+CXXFLAGS += -g -fPIC -std=c++17 -DSTATUS_VERSION=\"0.1\" -O1 -Wall -Wextra -pedantic
 OBJECTS=$(patsubst %.cc, %.o, $(CCFILES))
 LDFLAGS=-lpulse -lsystemd -g
 

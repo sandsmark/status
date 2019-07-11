@@ -108,10 +108,6 @@ static void print_battery() {
     fclose(file);
 
     unsigned long percentage = energy_now * 100 / energy_full;
-    if (percentage > 97) {
-        return;
-    }
-
 
     file = fopen("/sys/class/power_supply/BAT0/status", "rw");
     char *line = nullptr;

@@ -412,6 +412,8 @@ static void print_volume(PulseClient &client)
 
     if (device->Muted()) {
         print_gray();
+    } else {
+        print_green();
     }
 }
 

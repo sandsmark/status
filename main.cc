@@ -437,6 +437,7 @@ int main() {
 
     printf("{ \"version\": 1 }\n[\n");
 
+    struct timespec ts;
     while (g_running) {
         printf(" [ { \"full_text\": \"");
         print_battery();
@@ -462,7 +463,6 @@ int main() {
         fflush(stdout);
 
         // sleep until the next second
-        struct timespec ts;
         if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
             perror("clock_gettime");
             return 1;

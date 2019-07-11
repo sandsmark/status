@@ -4,7 +4,7 @@ OBJECTS=$(patsubst %.cc, %.o, $(CCFILES))
 LDFLAGS=-lpulse -lsystemd -g
 
 CXXFLAGS += -fsanitize=undefined -fsanitize=address
-LDFLAGS = -fsanitize=undefined -fsanitize=address
+LDFLAGS += -fsanitize=undefined -fsanitize=address
 
 status: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)

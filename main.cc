@@ -255,13 +255,13 @@ static bool print_net_usage(const std::string &device) {
             return false;
         }
 
-        char line[1]{};
-        if (fread(line, 1, 1, fp) != 1) {
+        const char status = getc(fp);
+        if (status != '1') {
             fclose(fp);
             return false;
         }
         fclose(fp);
-        if (line[0] != '1') {
+        if (status != '1') {
             return false;
         }
     }
@@ -338,10 +338,10 @@ static void print_mem() {
         return;
     }
 
-    char line[256];
+    char *line = nullptr;
     unsigned long memtotal = 0, memavailable = 0;
 
-    while (fgets(line, sizeof line, fp)) {
+    for (size_t len = 0; getline(&line, &len, fp) != -1;) {
         sscanf(line, "MemTotal: %lu kB", &memtotal);
         sscanf(line, "MemAvailable: %lu kB", &memavailable);
     }

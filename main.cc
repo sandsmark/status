@@ -148,7 +148,7 @@ static void print_cpu()
 {
     FILE *fp = fopen("/proc/stat", "r");
     if (!fp) {
-        printf("cpu: error opening /proc/stat: %m");
+        printf("cpu: error opening /proc/stat: %s\n", strerror(errno));
         return;
     }
     unsigned user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice;
@@ -225,7 +225,7 @@ static void print_wifi_strength() {
 
     FILE *fp = fopen("/proc/net/wireless", "r");
     if (!fp) {
-        printf("wifi: error opening /proc/net/wireless: %m");
+        printf("wifi: error opening /proc/net/wireless: %s\n", strerror(errno));
         return;
     }
 
@@ -337,7 +337,7 @@ static bool print_net_usage(const std::string &device) {
 static void print_mem() {
     FILE *fp = fopen("/proc/meminfo", "r");
     if (!fp) {
-        printf("mem: error opening /proc/meminfo: %m");
+        printf("mem: error opening /proc/meminfo: %s\n", strerror(errno));
         return;
     }
 
@@ -474,4 +474,6 @@ int main() {
             return 1;
         }
     }
+
+    return 0;
 }

@@ -3,6 +3,9 @@ CXXFLAGS += -g -fPIC -std=c++17 -DSTATUS_VERSION=\"0.1\" -O1 -Wall -Wextra -peda
 OBJECTS=$(patsubst %.cc, %.o, $(CCFILES))
 LDFLAGS=-lpulse -lsystemd -g
 
+CXXFLAGS += -fsanitize=undefined -fsanitize=address
+LDFLAGS = -fsanitize=undefined -fsanitize=address
+
 status: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 

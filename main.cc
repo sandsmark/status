@@ -345,6 +345,7 @@ static void print_mem() {
         sscanf(line, "MemTotal: %lu kB", &memtotal);
         sscanf(line, "MemAvailable: %lu kB", &memavailable);
     }
+    free(line);
 
     const long used = memtotal - memavailable;
 

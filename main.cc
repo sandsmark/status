@@ -286,11 +286,13 @@ static void print_load() {
         print_gray();
     }
 }
+
 static void print_wifi_strength() {
     {
         FILE *fp = fopen("/sys/class/net/" WLAN_INTERFACE "/carrier", "r");
         if (!fp) {
             printf("Unable to get carrier status for wifi");
+            print_sep();
             return;
         }
 

@@ -526,7 +526,7 @@ static void print_notification(Notification *notification)
     }
 
     fputs(message.c_str(), stdout);
-    print_green();
+    print_yellow();
 }
 
 static std::vector<Notification> g_notifications;
@@ -550,7 +550,7 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
   }
 
   // Can't be bothered to parse these, which aren't used
-  ret = sd_bus_message_skip(m, "asa{ss}");
+  ret = sd_bus_message_skip(m, "asa{sv}");
   if (ret < 0) {
       fprintf(stderr, "Failed to skip parameters: %s\n", strerror(-ret));
   }
@@ -580,6 +580,11 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
   Notification notification;
   notification.app = app_name;
   notification.message = summary;
+
+  if (notification.message.empty()) {
+      notification.message = body;
+  }
+
   notification.timeout = std::max(timeout, 1000) / 1000;
   g_notifications.push_back(std::move(notification));
 
@@ -588,6 +593,22 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
 
   return sd_bus_reply_method_return(m, "u", id++);
 }
+
+static int method_getcapabilities(sd_bus_message *m, void * /*userdata*/, sd_bus_error *error)
+{
+    return sd_bus_reply_method_return(m, "as", 5,
+            "action-icons",
+            "actions",
+            "body",
+            //"body-hyperlinks",
+            //"body-images",
+            //"body-markup",
+            //"icon-multi",
+            "persistence",
+            "sound"
+            );
+}
+
 
 static const sd_bus_vtable notifications_vtable[] = {
     SD_BUS_VTABLE_START(0),
@@ -599,11 +620,13 @@ static const sd_bus_vtable notifications_vtable[] = {
                 "s"      // summary
                 "s"      // body
                 "as"     // actions
-                "a{ss}"  // hints
+                "a{sv}"  // hints
                 "i",     // timeout
             "u",     // out
             method_notify,
         SD_BUS_VTABLE_UNPRIVILEGED),
+
+    SD_BUS_METHOD("GetCapabilities", "", "as", method_getcapabilities, SD_BUS_VTABLE_UNPRIVILEGED),
 
     SD_BUS_VTABLE_END
 };

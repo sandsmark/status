@@ -741,6 +741,13 @@ int main() {
     udev_device *udevDevice = nullptr;
     while (g_running) {
         printf(" [ { \"full_text\": \"");
+
+        if (!g_notifications.empty()) {
+            print_sep();
+            print_notification(&g_notifications.front());
+        }
+
+        print_sep();
         print_battery(udevDevice);
         print_disk_info("/");
         print_sep();
@@ -761,10 +768,7 @@ int main() {
         print_volume(client);
         print_sep();
         print_time();
-        if (!g_notifications.empty()) {
-            print_sep();
-            print_notification(&g_notifications.front());
-        }
+
         printf("\" } ],\n");
         fflush(stdout);
 

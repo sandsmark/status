@@ -599,7 +599,7 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
       notification.message = body;
   }
 
-  notification.timeout = std::max(timeout, 5000) / 1000;
+  notification.timeout = std::max(timeout, 10000) / 1000;
   g_notifications.push_back(std::move(notification));
 
   static int id = 0;

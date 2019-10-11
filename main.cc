@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <systemd/sd-bus.h>
 #include <libudev.h>
+#include <regex>
 
 #include "pulse.h"
 
@@ -591,9 +592,11 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
       }
   }
 
+  std::regex stripRegex("[^a-zA-Z0-9.,#_\\- ]");
+
   Notification notification;
-  notification.app = app_name;
-  notification.message = summary;
+  notification.app = std::regex_replace(app_name, stripRegex, "");
+  notification.message = std::regex_replace(summary, stripRegex, "");
 
   if (notification.message.empty()) {
       notification.message = body;

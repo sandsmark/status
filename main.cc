@@ -642,7 +642,9 @@ static const sd_bus_vtable notifications_vtable[] = {
 
     SD_BUS_METHOD("GetCapabilities", "", "as", method_getcapabilities, SD_BUS_VTABLE_UNPRIVILEGED),
 
-    SD_BUS_VTABLE_END
+    // Instead of using SD_BUS_VTABLE_END do it 'manually' to squash compiler
+    // warnings
+    { .type = _SD_BUS_VTABLE_END, .flags = 0, .x = { { 0, 0, 0 } } },
 };
 
 static bool g_running = true;

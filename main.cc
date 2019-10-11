@@ -585,7 +585,7 @@ static int method_notify(sd_bus_message *m, void * /*userdata*/, sd_bus_error *e
       notification.message = body;
   }
 
-  notification.timeout = std::max(timeout, 1000) / 1000;
+  notification.timeout = std::max(timeout, 5000) / 1000;
   g_notifications.push_back(std::move(notification));
 
   static int id = 0;
@@ -810,7 +810,7 @@ int main() {
         }
 
         if (!g_notifications.empty()) {
-            if (--g_notifications.front().timeout <= 0) {
+            if (g_notifications.front().timeout-- <= 0) {
                 g_notifications.erase(g_notifications.begin());
             }
         }

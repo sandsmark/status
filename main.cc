@@ -40,6 +40,11 @@ inline void print_red()
     printf("\", \"color\": \"#ff9999");
 }
 
+inline void print_red_background()
+{
+    printf("\", \"background\": \"#ff9999");
+}
+
 inline void print_yellow()
 {
     printf("\", \"color\": \"#ffff00");
@@ -48,6 +53,11 @@ inline void print_yellow()
 inline void print_green()
 {
     printf("\", \"color\": \"#00ff00");
+}
+
+inline void print_white_background()
+{
+    printf("\", \"background\": \"#ffffff");
 }
 
 static void print_disk_info(const char *path) {
@@ -526,7 +536,11 @@ static void print_notification(Notification *notification)
     }
 
     fputs(message.c_str(), stdout);
-    print_yellow();
+
+    if (notification->timeout % 2 == 0) {
+        print_black();
+        print_white_background();
+    }
 }
 
 static std::vector<Notification> g_notifications;

@@ -174,7 +174,7 @@ const Sink* PulseClient::GetDefaultSink() const {
 bool PulseClient::wait_for_op(pa_operation* op) {
   int r = 0, ret;
   while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
-    ret = pa_mainloop_iterate(mainloop_, 1, &r) < 0;
+    ret = pa_mainloop_iterate(mainloop_, 1, &r);
     if (ret < 0) {
       fprintf(stderr, "PA error while iterating: %d\n", ret);
       return false;

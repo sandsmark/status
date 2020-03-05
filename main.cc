@@ -12,6 +12,9 @@
 
 #include "pulse.h"
 
+// TODO automatically get the correct interface
+#define WLAN_INTERFACE "wlan0"
+
 // number of samples to average
 // setting it to 1 disables averaging
 const unsigned net_samples = 5;
@@ -200,7 +203,7 @@ static void print_load() {
 }
 static void print_wifi_strength() {
     {
-        FILE *fp = fopen("/sys/class/net/wlp0s20f3/carrier", "r");
+        FILE *fp = fopen("/sys/class/net/" WLAN_INTERFACE "/carrier", "r");
         if (!fp) {
             printf("Unable to get carrier status for wifi");
             return;
@@ -229,7 +232,7 @@ static void print_wifi_strength() {
     int strength = -1.0;
 
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " wlp0s20f3: %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
+        if (sscanf(ln, " " WLAN_INTERFACE ": %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
                    &strength) == 1) {
             break;
         }
@@ -446,7 +449,7 @@ int main() {
         print_disk_info("/");
         print_net_usage("enp0s31f6");
         print_sep();
-        if (print_net_usage("wlp0s20f3")) {
+        if (print_net_usage(WLAN_INTERFACE)) {
             print_sep();
         }
         print_wifi_strength();

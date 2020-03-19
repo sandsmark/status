@@ -9,5 +9,11 @@ LDFLAGS += -fsanitize=undefined -fsanitize=address
 status: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
+%.o: %.cc
+	$(CXX) -MMD -MP $(CXXFLAGS) -o $@ -c $<
+
+DEPS=$(OBJECTS:.o=.d)
+-include $(DEPS)
+
 clean:
-	rm -f status $(OBJECTS)
+	rm -f status $(OBJECTS) $(DEPS)

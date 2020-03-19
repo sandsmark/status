@@ -173,6 +173,7 @@ struct UdevConnection {
             battery.batteryCharging = false;
             battery.percentage = 100;
         } else {
+            battery.batteryCharging = battery.chargerOnline;
             fprintf(stderr, "unknown status %s\n", chargingStatus);
             printProperties(battery.udevDevice);
         }

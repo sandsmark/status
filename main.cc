@@ -36,6 +36,11 @@ inline void print_gray()
     printf("\", \"color\": \"#aaaaaa");
 }
 
+inline void print_black()
+{
+    printf("\", \"color\": \"#000000");
+}
+
 inline void print_red()
 {
     printf("\", \"color\": \"#ff9999");

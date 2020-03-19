@@ -117,42 +117,14 @@ static void do_suspend()
 
 static void print_battery(UdevConnection *udevConnection)
 {
-    bool chargerOnline = false;
-    bool batteryCharging = false;
-    unsigned long percentage = 0;
-
-    if (udevConnection->updateBattery()) {
-        chargerOnline = udevConnection->battery.chargerOnline;
-        batteryCharging = udevConnection->battery.batteryCharging;
-        percentage = udevConnection->battery.percentage;
-    } else {
-        fprintf(stderr, "udev invalid\n");
-        FILE *file = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
-        if (!file) {
-            printf("failed to open file for battery");
-            return;
-        }
-        unsigned long energy_now;
-        fscanf(file, "%lu", &energy_now);
-        fclose(file);
-        file = fopen("/sys/class/power_supply/BAT0/energy_full", "r");
-        unsigned long energy_full;
-        fscanf(file, "%lu", &energy_full);
-        fclose(file);
-
-        percentage = energy_now * 100 / energy_full;
-
-        file = fopen("/sys/class/power_supply/BAT0/status", "rw");
-        char *line = nullptr;
-        size_t len;
-        getline(&line, &len, file);
-        fclose(file);
-        if (strcmp(line, "Charging\n") == 0) {
-            batteryCharging = true;
-            udevConnection->battery.preUdevConnected = true;
-        }
-        free(line);
+    if (!udevConnection->battery.valid) {
+        fprintf(stderr, "udev invalid, failed to get battery\n");
+        return;
     }
+
+    const bool chargerOnline = udevConnection->battery.chargerOnline;
+    const bool batteryCharging = udevConnection->battery.batteryCharging;
+    const unsigned long percentage = udevConnection->battery.percentage;
 
     if (chargerOnline && percentage > 97) {
         return;
@@ -161,26 +133,25 @@ static void print_battery(UdevConnection *udevConnection)
     if (batteryCharging) {
         printf("charging: %lu%%", percentage);
         print_gray();
-    } else {
-        static unsigned long last_percentage = 100;
-        if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
-            do_suspend();
-        }
-        last_percentage = percentage;
-
-        printf("bat: %lu%%", percentage);
-        if (percentage < 10) {
-            print_red();
-        } else if (percentage < 20) {
-            print_yellow();
-        } else if (percentage < 30) {
-            print_green();
-        } else if (percentage > 90) {
-            print_gray();
-        }
+        return;
     }
 
-    print_sep();
+    const unsigned long last_percentage = udevConnection->battery.last_percentage;
+    if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
+        do_suspend();
+    }
+    udevConnection->battery.last_percentage = percentage;
+
+    printf("bat: %lu%%", percentage);
+    if (percentage < 10) {
+        print_red();
+    } else if (percentage < 20) {
+        print_yellow();
+    } else if (percentage < 30) {
+        print_green();
+    } else if (percentage > 90) {
+        print_gray();
+    }
 }
 
 static unsigned s_cpu_high_seconds = 0;
@@ -608,7 +579,6 @@ bool register_notification_service(sd_bus *bus, sd_bus_slot **slot)
         return false;
     }
 
-    fprintf(stderr, "Registered notifications service %p\n", (void*)*slot);
     int ret = sd_bus_add_object_vtable(bus,
             slot,
             "/org/freedesktop/Notifications",  /* object path */
@@ -616,14 +586,13 @@ bool register_notification_service(sd_bus *bus, sd_bus_slot **slot)
             notifications_vtable,
             NULL);
 
-    fprintf(stderr, "registered dbus vtable: %d", ret);
     if (ret < 0) {
-        fprintf(stderr, "Failed to register dbus vtable: %s", strerror(-ret));
+        fprintf(stderr, "Failed to register dbus vtable: %s\n", strerror(-ret));
         return false;
     }
     ret = sd_bus_request_name(bus, "org.freedesktop.Notifications", 0);
     if (ret < 0) {
-        fprintf(stderr, "Failed to request dbus name: %s", strerror(-ret));
+        fprintf(stderr, "Failed to request dbus name: %s\n", strerror(-ret));
         return false;
     }
     return true;
@@ -644,10 +613,7 @@ int main()
     sd_bus_slot *slot = nullptr;
     sd_bus *bus = nullptr;
     int dbus_fd = -1;
-    //int ret = 0;
-    //  sd_bus_default(&bus);
 
-    //int ret = sd_bus_open_user(&bus);
     int ret = sd_bus_default_user(&bus);
     if (ret < 0) {
         fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-ret));
@@ -686,6 +652,7 @@ int main()
 
         print_sep();
         print_battery(&udevConnection);
+        print_sep();
         print_disk_info("/");
         print_sep();
         print_disk_info("/");
@@ -710,8 +677,29 @@ int main()
         fflush(stdout);
 
         fd_set fdset;
+        if (udevConnection.udevAvailable || dbus_fd >= 0) {
+            FD_ZERO(&fdset);
+            FD_SET(udevConnection.udevSocketFd, &fdset);
 
-        if (!udevConnection.update(&fdset, dbus_fd)) { // fallback if udev is unavailable
+            if (dbus_fd >= 0) {
+                FD_SET(dbus_fd, &fdset);
+            }
+
+            timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 1000000; // 1s
+            const bool success = (select(std::max(udevConnection.udevSocketFd, dbus_fd) + 1, &fdset, 0, 0, &timeout) != -1) && (errno == 0);
+            if (success && FD_ISSET(udevConnection.udevSocketFd, &fdset)) {
+                udevConnection.update();
+            }
+
+            if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {
+                fprintf(stderr, "processing dbus\n");
+                process_bus(bus);
+            }
+        } else {
+            fprintf(stderr, "udev and dbus unavailable!\n");
+
             // sleep until the next second
             struct timespec ts;
             if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
@@ -723,11 +711,6 @@ int main()
                 perror("clock_nanosleep");
                 return 1;
             }
-        }
-
-        if (errno == 0 && FD_ISSET(dbus_fd, &fdset)) {
-            fprintf(stderr, "processing dbus\n");
-            process_bus(bus);
         }
 
         if (!g_notifications.empty()) {

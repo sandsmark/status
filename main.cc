@@ -85,7 +85,6 @@ static void print_disk_info(const char *path) {
 
 static void do_suspend()
 {
-    return;
     sd_bus *bus = nullptr;
     int ret = sd_bus_open_system(&bus);
     if (ret < 0) {

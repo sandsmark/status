@@ -37,6 +37,7 @@ struct UdevConnection {
         udev_enumerate* enumerate = udev_enumerate_new(context);
 
         udev_enumerate_add_match_subsystem(enumerate, "power_supply");
+        udev_enumerate_add_match_subsystem(enumerate, "net");
         udev_enumerate_scan_devices(enumerate);
 
         udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
@@ -53,6 +54,33 @@ struct UdevConnection {
                 fprintf(stderr, "failed getting %s\n", path);
                 continue;
             }
+            const char *subsystem = udev_device_get_subsystem(dev);
+            if (strcmp(subsystem, "net") == 0) {
+                const char *interface = udev_device_get_property_value(dev, "INTERFACE");
+                const char *devtype = udev_device_get_devtype(dev);
+
+                if (!interface) {
+                    fprintf(stderr, "missing interface property!\n");
+                    printProperties(dev);
+                    udev_device_unref(dev);
+                    continue;
+                }
+
+                if (strcmp(interface, "lo") == 0) {
+                    udev_device_unref(dev);
+                    continue;
+                }
+
+                if (devtype && strcmp(devtype, "wlan")) {
+                    wlanInterfaces.push_back(interface);
+                } else {
+                    ethernetInterfaces.push_back(interface);
+                }
+
+                udev_device_unref(dev);
+                continue;
+            }
+
             const char *deviceName = udev_device_get_sysname(dev);
             if (strcmp(deviceName, "BAT0") == 0) {
                 battery.udevDevice = dev;
@@ -60,6 +88,7 @@ struct UdevConnection {
                 battery.charger = dev;
             } else {
                 fprintf(stderr, "Unknown power supply device %s\n", deviceName);
+                printProperties(dev);
                 udev_device_unref(dev);
             }
 
@@ -224,5 +253,8 @@ struct UdevConnection {
         unsigned long last_percentage = 100;
         bool valid = false;
     } battery;
+
+    std::vector<std::string> wlanInterfaces;
+    std::vector<std::string> ethernetInterfaces;
 };
 

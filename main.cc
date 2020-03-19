@@ -122,15 +122,17 @@ static void print_battery(UdevConnection *udevConnection)
         return;
     }
 
+    
     const bool chargerOnline = udevConnection->battery.chargerOnline;
     const bool batteryCharging = udevConnection->battery.batteryCharging;
-    const unsigned long percentage = udevConnection->battery.percentage;
+    const int percentage = udevConnection->battery.percentage;
+    const bool charging = chargerOnline || batteryCharging;
 
-    if (chargerOnline && percentage > 97) {
+    if (charging && percentage > 97) {
         return;
     }
 
-    if (batteryCharging) {
+    if (charging) {
         printf("charging: %lu%%", percentage);
         print_gray();
         return;

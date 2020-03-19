@@ -128,27 +128,19 @@ struct UdevConnection {
         const char *deviceName = udev_device_get_sysname(dev);
         if (strcmp(deviceName, "BAT0") == 0) {
             if (dev != battery.udevDevice) {
-                fprintf(stderr, "new battery device %p, %p\n", (void*)dev, (void*)battery.udevDevice);
-
                 if (battery.udevDevice) {
                     udev_device_unref(battery.udevDevice);
                 }
 
                 battery.udevDevice = dev;
-            } else {
-                fprintf(stderr, "same battery device %p, %p\n", (void*)dev, (void*)battery.udevDevice);
             }
         } else if (strcmp(deviceName, "AC") == 0) {
             if (dev != battery.charger) {
-                fprintf(stderr, "new charger device %p, %p\n", (void*)dev, (void*)battery.charger);
-
                 if (battery.charger) {
                     udev_device_unref(battery.charger);
                 }
 
                 battery.charger = dev;
-            } else {
-                fprintf(stderr, "same charger device %p, %p\n", (void*)dev, (void*)battery.udevDevice);
             }
         } else {
             fprintf(stderr, "Unknown power supply device notification %s\n", deviceName);
@@ -182,7 +174,7 @@ struct UdevConnection {
             battery.percentage = 100;
         } else {
             fprintf(stderr, "unknown status %s\n", chargingStatus);
-            return false;
+            printProperties(battery.udevDevice);
         }
         const char *capacity = udev_device_get_property_value(battery.udevDevice, "POWER_SUPPLY_CAPACITY");
 
@@ -209,7 +201,6 @@ struct UdevConnection {
             battery.chargerOnline = false;
         } else {
             fprintf(stderr, "unknown charger online %s\n", online);
-            return false;
         }
 
         return true;
@@ -228,7 +219,7 @@ struct UdevConnection {
 
         bool chargerOnline = false;
         bool batteryCharging = false;
-        unsigned long percentage = 0;
+        int percentage = 0;
         unsigned long last_percentage = 100;
         bool valid = false;
     } battery;

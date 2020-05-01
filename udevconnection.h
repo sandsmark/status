@@ -200,19 +200,10 @@ struct UdevConnection {
             battery.batteryCharging = false;
         } else if (strcmp(chargingStatus, "Full") == 0) {
             battery.batteryCharging = false;
-            battery.percentage = 100;
         } else {
             battery.batteryCharging = battery.chargerOnline;
             fprintf(stderr, "unknown status %s\n", chargingStatus);
             printProperties(battery.udevDevice);
-        }
-        const char *capacity = udev_device_get_property_value(battery.udevDevice, "POWER_SUPPLY_CAPACITY");
-
-        battery.percentage = atoi(capacity);
-
-        if (battery.percentage == -1) {
-            fprintf(stderr, "Invalid percentage: %s\n", capacity);
-            return false;
         }
 
         return true;
@@ -249,8 +240,7 @@ struct UdevConnection {
 
         bool chargerOnline = false;
         bool batteryCharging = false;
-        int percentage = 0;
-        unsigned long last_percentage = 100;
+        int last_percentage = 100;
         bool valid = false;
     } battery;
 

@@ -88,10 +88,23 @@ static void print_battery(UdevConnection *udevConnection)
         return;
     }
 
-    
     const bool chargerOnline = udevConnection->battery.chargerOnline;
+
+    FILE *file = fopen("/sys/class/power_supply/BAT0/capacity", "r");
+    if (!file) {
+        puts("failed to open file for battery");
+        return;
+    }
+    int percentage = -1;
+    if (fscanf(file, "%d", &percentage) != 1) {
+        puts("Failed to read battery capacity");
+        fclose(file);
+        return;
+    }
+    fclose(file);
+
     const bool batteryCharging = udevConnection->battery.batteryCharging;
-    const int percentage = udevConnection->battery.percentage;
+
     const bool charging = chargerOnline && batteryCharging;
 
     if (charging && percentage > 97) {
@@ -104,9 +117,9 @@ static void print_battery(UdevConnection *udevConnection)
         return;
     }
 
-    const unsigned long last_percentage = udevConnection->battery.last_percentage;
+    const int last_percentage = udevConnection->battery.last_percentage;
     if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
-        do_suspend();
+        //do_suspend();
     }
     udevConnection->battery.last_percentage = percentage;
 

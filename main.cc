@@ -83,12 +83,12 @@ static void do_suspend()
 
 static void print_battery(UdevConnection *udevConnection)
 {
-    if (!udevConnection->battery.valid) {
+    if (!udevConnection->power.valid) {
         fprintf(stderr, "udev invalid, failed to get battery\n");
         return;
     }
 
-    const bool chargerOnline = udevConnection->battery.chargerOnline;
+    const bool chargerOnline = udevConnection->power.chargerOnline;
 
     FILE *file = fopen("/sys/class/power_supply/BAT0/capacity", "r");
     if (!file) {
@@ -103,7 +103,7 @@ static void print_battery(UdevConnection *udevConnection)
     }
     fclose(file);
 
-    const bool batteryCharging = udevConnection->battery.batteryCharging;
+    const bool batteryCharging = udevConnection->power.batteryCharging;
 
     const bool charging = chargerOnline && batteryCharging;
 
@@ -117,11 +117,11 @@ static void print_battery(UdevConnection *udevConnection)
         return;
     }
 
-    const int last_percentage = udevConnection->battery.last_percentage;
+    const int last_percentage = udevConnection->power.last_percentage;
     if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
-        //do_suspend();
+        do_suspend();
     }
-    udevConnection->battery.last_percentage = percentage;
+    udevConnection->power.last_percentage = percentage;
 
     printf("bat: %d%%", percentage);
     if (percentage < 10) {

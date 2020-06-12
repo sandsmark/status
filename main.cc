@@ -183,9 +183,9 @@ static void print_load() {
     }
 }
 
-static void print_wifi_strength() {
+static void print_wifi_strength(const std::string &interface) {
     {
-        FILE *fp = fopen("/sys/class/net/" WLAN_INTERFACE "/carrier", "r");
+        FILE *fp = fopen(("/sys/class/net/" + interface + "/carrier").c_str(), "r");
         if (!fp) {
             printf("Unable to get carrier status for wifi");
             print_sep();
@@ -214,9 +214,9 @@ static void print_wifi_strength() {
     char *ln = nullptr;
     int strength = -1.0;
 
+    const std::string matchString = " " + interface + ": %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u";
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
-        if (sscanf(ln, " " WLAN_INTERFACE ": %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u",
-                   &strength) == 1) {
+        if (sscanf(ln, matchString.c_str(), &strength) == 1) {
             break;
         }
     }
@@ -407,6 +407,14 @@ int main()
 {
     static UdevConnection udevConnection;
 
+    for (const std::string &dev : udevConnection.wlanInterfaces) {
+        printf("wlan: %s\n", dev.c_str());
+    }
+
+    for (const std::string &dev : udevConnection.ethernetInterfaces) {
+        fprintf(stderr, "ethernet: %s\n", dev.c_str());
+    }
+
     sd_bus_slot *slot = nullptr;
     sd_bus *bus = nullptr;
     int dbus_fd = -1;
@@ -446,26 +454,33 @@ int main()
 
 #ifdef ENABLE_NOTIFICATIONS
         if (!g_notifications.empty()) {
-            print_sep();
             print_notification(&g_notifications.front());
+            print_sep();
         }
 #endif
 
         if (udevConnection.battery.valid) {
-            print_sep();
             print_battery(&udevConnection);
-        }
-        print_sep();
-        print_disk_info("/");
-        print_sep();
-        print_disk_info("/");
-        print_net_usage("enp0s31f6");
-        print_sep();
-        if (print_net_usage(WLAN_INTERFACE)) {
             print_sep();
         }
-        print_wifi_strength();
+        print_disk_info("/");
         print_sep();
+
+        for (const std::string &dev : udevConnection.ethernetInterfaces) {
+            print_net_usage(dev);
+            print_sep();
+        }
+
+        for (const std::string &dev : udevConnection.wlanInterfaces) {
+            print_net_usage(dev);
+            print_sep();
+        }
+
+        for (const std::string &dev : udevConnection.wlanInterfaces) {
+            print_wifi_strength(dev);
+            print_sep();
+        }
+
         print_load();
         print_sep();
         print_mem();

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <systemd/sd-bus.h>
+#include <mntent.h>
 
 #include "pulse.h"
 
@@ -40,12 +41,14 @@ static void print_disk_info(const char *path) {
         return;
     }
     double gb_free = (double)buf.f_bavail * (double)buf.f_bsize / 1000000000.0;
-    printf("%s: %.1fGB free", path, gb_free);
     if (gb_free < 1) {
+        printf("%s %.1f GB", path, gb_free);
         print_red();
     } else if (gb_free < 5) {
+        printf("%s %.1f GB", path, gb_free);
         print_yellow();
     } else {
+        printf("%s %.0f GB", path, gb_free);
         print_gray();
     }
 }
@@ -306,8 +309,6 @@ static bool print_net_usage(const std::string &device) {
     rx_delta /= 1024;
     tx_delta /= 1024;
 
-    print_sep();
-
     if (rx_delta > 100) {
         printf("rx: %5.1fmb ", rx_delta/1024.);
     } else {
@@ -418,17 +419,33 @@ static void print_volume(PulseClient &client)
         print_green();
     }
 }
+
+static std::vector<std::string> getPartitions()
+{
+    FILE *file = setmntent("/proc/mounts", "r");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open /proc/mounts");
+        return {};
+    }
+
+    std::vector<std::string> partitions;
+    mntent *ent = nullptr;
+    while ((ent = getmntent(file))) {
+        if (std::string(ent->mnt_type) != "ext4") {
+            continue;
+        }
+        partitions.push_back(ent->mnt_dir);
+    }
+    endmntent(file);
+
+    return partitions;
+}
+
 int main()
 {
     static UdevConnection udevConnection;
 
-    for (const std::string &dev : udevConnection.wlanInterfaces) {
-        printf("wlan: %s\n", dev.c_str());
-    }
-
-    for (const std::string &dev : udevConnection.ethernetInterfaces) {
-        fprintf(stderr, "ethernet: %s\n", dev.c_str());
-    }
+    const std::vector<std::string> mountPoints = getPartitions();
 
     sd_bus_slot *slot = nullptr;
     sd_bus *bus = nullptr;
@@ -478,8 +495,11 @@ int main()
             print_battery(&udevConnection);
             print_sep();
         }
-        print_disk_info("/");
-        print_sep();
+
+        for (const std::string &partition : mountPoints) {
+            print_disk_info(partition.c_str());
+            print_sep();
+        }
 
         for (const std::string &dev : udevConnection.ethernetInterfaces) {
             print_net_usage(dev);

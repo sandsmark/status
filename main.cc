@@ -451,8 +451,10 @@ int main()
         }
 #endif
 
-        print_sep();
-        print_battery(&udevConnection);
+        if (udevConnection.battery.valid) {
+            print_sep();
+            print_battery(&udevConnection);
+        }
         print_sep();
         print_disk_info("/");
         print_sep();

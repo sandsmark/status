@@ -381,19 +381,21 @@ static void print_mem() {
 
 static void print_time(time_t offset = 0) {
     time_t now;
+    tm result;
+
     time(&now);
     char buf[sizeof "week 43 Fri 2015-10-30 12:44:52"];
     if (offset) {
         now += offset;
-        strftime(buf, sizeof buf, "%H:%M", localtime(&now));
+        strftime(buf, sizeof buf, "%H:%M", localtime_r(&now, &result));
         fputs(buf, stdout);
         print_gray();
     } else {
-        strftime(buf, sizeof buf, "week %V %a %F", localtime(&now));
+        strftime(buf, sizeof buf, "week %V %a %F", localtime_r(&now, &result));
         fputs(buf, stdout);
         print_gray();
         print_sep();
-        strftime(buf, sizeof buf, "%T", localtime(&now));
+        strftime(buf, sizeof buf, "%T", localtime_r(&now, &result));
         fputs(buf, stdout);
     }
 }

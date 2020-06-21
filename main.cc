@@ -472,7 +472,7 @@ int main()
         }
 #endif
 
-        if (udevConnection.battery.valid) {
+        if (udevConnection.power.valid) {
             print_battery(&udevConnection);
             print_sep();
         }

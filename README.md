@@ -9,6 +9,7 @@ Displays:
  - Battery percentage/charging state (if battery present)
  - Disk space free on all (relevant) partitions)
  - Current network traffic
+ - WiFi signal strength (if wlan interface present)
  - Current system load
  - Memory free
  - CPU usage

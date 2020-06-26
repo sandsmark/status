@@ -71,7 +71,7 @@ struct UdevConnection {
                     continue;
                 }
 
-                if (devtype && strcmp(devtype, "wlan")) {
+                if (devtype && strcmp(devtype, "wlan") == 0) {
                     wlanInterfaces.push_back(interface);
                 } else {
                     ethernetInterfaces.push_back(interface);

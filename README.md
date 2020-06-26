@@ -5,6 +5,9 @@ status
 
 Fairly simple thing to be used with i3bar.
 
+It also automatically suspends my laptop if the battery gets too low (because I
+couldn't find anything else that did that nicely, and this already checked my battery).
+
 Displays:
  - Battery percentage/charging state (if battery present)
  - Disk space free on all (relevant) partitions)

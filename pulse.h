@@ -1,5 +1,8 @@
 #pragma once
 
+// originally from ponymix, a long long time ago
+// not sure how much of the original code is recognizable
+
 // C
 #include <string.h>
 

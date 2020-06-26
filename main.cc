@@ -21,9 +21,6 @@
 
 #include "pulse.h"
 
-// TODO automatically get the correct interface
-#define WLAN_INTERFACE "wlan0"
-
 // number of samples to average
 // setting it to 1 disables averaging
 const unsigned net_samples = 5;

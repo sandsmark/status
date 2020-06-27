@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <systemd/sd-bus.h>
+#include <sys/sysinfo.h>
 #include <mntent.h>
 
 #include "pulse.h"
@@ -136,6 +137,7 @@ static void print_battery(UdevConnection *udevConnection)
 }
 
 static unsigned s_cpu_high_seconds = 0;
+static unsigned s_cpu_count = 1;
 
 static void print_cpu()
 {
@@ -163,8 +165,10 @@ static void print_cpu()
     previdle = idle;
     prevnonidle = nonidle;
 
-    // Show feedback if CPU is pegged
-    if (percent > 20) {
+    // Show feedback if CPU (core) is pegged
+    // Approximate core thing, but it works (and is much simpler than parsing
+    // the entire /proc/stat)
+    if (percent * s_cpu_count > 80) {
         s_cpu_high_seconds++;
     } else {
         s_cpu_high_seconds = 0;
@@ -459,7 +463,7 @@ int main()
         fprintf(stderr, "Not using notifications\n");
     }
 #endif
-
+    s_cpu_count = get_nprocs();
 
     PulseClient client("status");
 

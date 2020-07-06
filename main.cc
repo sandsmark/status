@@ -106,7 +106,7 @@ static void print_battery(UdevConnection *udevConnection)
 
     const bool batteryCharging = udevConnection->power.batteryCharging;
 
-    const bool charging = chargerOnline && batteryCharging;
+    const bool charging = chargerOnline;
 
     if (charging && percentage > 97) {
         return;

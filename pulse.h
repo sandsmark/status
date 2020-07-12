@@ -62,6 +62,7 @@ class PulseClient {
 
  private:
   bool init();
+  void deinit();
   bool wait_for_op(pa_operation* op);
 
   bool populate_server_info();

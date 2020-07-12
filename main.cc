@@ -584,4 +584,6 @@ int main()
     if (bus) {
         sd_bus_unref(bus);
     }
+
+    return 0;
 }

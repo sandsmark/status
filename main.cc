@@ -444,7 +444,7 @@ static std::vector<std::string> getPartitions()
 
 int main()
 {
-    static UdevConnection udevConnection;
+    UdevConnection udevConnection;
 
     const std::vector<std::string> mountPoints = getPartitions();
 

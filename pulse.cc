@@ -73,29 +73,37 @@ PulseClient::PulseClient(string client_name) :
     mainloop_(nullptr),
     state_(PA_CONTEXT_UNCONNECTED)
 {
+  connect_props_ = pa_proplist_new();
+  pa_proplist_sets(connect_props_, PA_PROP_APPLICATION_NAME, client_name_.c_str());
+  pa_proplist_sets(connect_props_, PA_PROP_APPLICATION_ID, "com.iskrembilen.status");
+  pa_proplist_sets(connect_props_, PA_PROP_APPLICATION_VERSION, STATUS_VERSION);
+  pa_proplist_sets(connect_props_, PA_PROP_APPLICATION_ICON_NAME, "audio-card");
+}
+
+void PulseClient::deinit()
+{
+  if (context_) {
+    pa_context_unref(context_);
+    context_ = nullptr;
+  }
+
+  if (mainloop_) {
+    pa_mainloop_quit(mainloop_, 0);
+    pa_mainloop_free(mainloop_);
+    mainloop_ = nullptr;
+  }
 }
 
 bool PulseClient::init()
 {
   state_ = PA_CONTEXT_CONNECTING;
 
-  pa_proplist* proplist = pa_proplist_new();
-  pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, client_name_.c_str());
-  pa_proplist_sets(proplist, PA_PROP_APPLICATION_ID, "com.iskrembilen.status");
-  pa_proplist_sets(proplist, PA_PROP_APPLICATION_VERSION, STATUS_VERSION);
-  pa_proplist_sets(proplist, PA_PROP_APPLICATION_ICON_NAME, "audio-card");
 
-  if (mainloop_) {
-    pa_context_unref(context_);
-    context_ = nullptr;
-    pa_mainloop_free(mainloop_);
-    mainloop_ = nullptr;
-  }
+  deinit();
+
   mainloop_ = pa_mainloop_new();
   context_ = pa_context_new_with_proplist(pa_mainloop_get_api(mainloop_),
-                                          nullptr, proplist);
-
-  pa_proplist_free(proplist);
+                                          nullptr, connect_props_);
 
   pa_context_set_state_callback(context_, connect_state_cb, &state_);
   pa_context_connect(context_, nullptr, PA_CONTEXT_NOFLAGS, nullptr);
@@ -104,6 +112,7 @@ bool PulseClient::init()
     int processed = pa_mainloop_iterate(mainloop_, 1, &err);
     if (err < 0) {
       fprintf(stderr, "PA mainloop quit while iterate for init PA: %d (%d events processed)\n", err, processed);
+      deinit();
       return false;
     }
   }
@@ -111,6 +120,7 @@ bool PulseClient::init()
   if (state_ != PA_CONTEXT_READY) {
     fprintf(stderr, "failed to connect to pulse daemon: %s\n",
         pa_strerror(pa_context_errno(context_)));
+    deinit();
     return false;
   }
   return true;
@@ -121,9 +131,8 @@ bool PulseClient::init()
 //
 PulseClient::~PulseClient() {
   fprintf(stderr, "goodbye, PA\n");
-  pa_context_unref(context_);
-  pa_mainloop_quit(mainloop_, 0);
-  pa_mainloop_free(mainloop_);
+  pa_proplist_free(connect_props_ );
+  deinit();
 }
 
 void PulseClient::Populate() {
@@ -172,22 +181,22 @@ const Sink* PulseClient::GetDefaultSink() const {
 }
 
 bool PulseClient::wait_for_op(pa_operation* op) {
-  int r = 0, ret;
+  int ret = -1;
   while (pa_operation_get_state(op) == PA_OPERATION_RUNNING) {
-    ret = pa_mainloop_iterate(mainloop_, 1, &r);
+    ret = pa_mainloop_iterate(mainloop_, 1, nullptr);
     if (ret < 0) {
       fprintf(stderr, "PA error while iterating: %d\n", ret);
-      return false;
+      break;
     }
-    if (r < 0) {
-      fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
-      return false;
-    }
+    //if (r < 0) {
+    //  fprintf(stderr, "PA mainloop quit: %d %s\n", r, pa_strerror(pa_context_errno(context_)));
+    //  break;
+    //}
   }
 
   pa_operation_unref(op);
 
-  return true;
+  return ret != -1;
 }
 
 bool PulseClient::populate_server_info() {

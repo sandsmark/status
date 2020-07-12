@@ -68,8 +68,9 @@ class PulseClient {
   bool populate_sinks();
 
   string client_name_;
-  pa_context* context_;
-  pa_mainloop* mainloop_;
+  pa_context* context_ = nullptr;
+  pa_mainloop* mainloop_ = nullptr;
+  pa_proplist *connect_props_ = nullptr;
   vector<Sink> sinks_;
   std::string default_sink_;
   pa_context_state state_;

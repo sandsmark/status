@@ -442,8 +442,16 @@ static std::vector<std::string> getPartitions()
     return partitions;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    bool ignoreWifi = false;
+    for (int i=1; i<argc; i++) {
+        if (strcmp(argv[i], "--ignore-wifi") == 0) {
+            ignoreWifi = true;
+        }
+    }
+
+
     UdevConnection udevConnection;
 
     const std::vector<std::string> mountPoints = getPartitions();
@@ -512,9 +520,11 @@ int main()
             print_sep();
         }
 
-        for (const std::string &dev : udevConnection.wlanInterfaces) {
-            print_wifi_strength(dev);
-            print_sep();
+        if (!ignoreWifi) {
+            for (const std::string &dev : udevConnection.wlanInterfaces) {
+                print_wifi_strength(dev);
+                print_sep();
+            }
         }
 
         print_load();

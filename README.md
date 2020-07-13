@@ -32,3 +32,8 @@ Probably not very useful for others, this is mostly for myself.
 
 Memory usage is about ~200KB according to Massif (RES is a bit higher, I assume
 it is because of how the glibc allocator works).
+
+Arguments:
+----------
+ - `--ignore-wifi` (does what it says on the tin)
+

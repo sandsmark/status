@@ -51,7 +51,7 @@ static void print_disk_info(const char *path) {
     }
 }
 
-static void do_suspend()
+static void do_poweroff()
 {
     sd_bus *bus = nullptr;
     int ret = sd_bus_open_system(&bus);
@@ -66,11 +66,11 @@ static void do_suspend()
 			"org.freedesktop.login1",           /* service to contact */
 			"/org/freedesktop/login1",          /* object path */
 			"org.freedesktop.login1.Manager",   /* interface name */
-			"Suspend",                          /* method name */
-			&error,                               /* object to return error in */
-			&dbusRet,                                   /* return message on success */
-			"b",                                 /* input signature */
-			"true");                       /* first argument */
+			"PowerOff",                         /* method name */
+			&error,                             /* object to return error in */
+			&dbusRet,                           /* return message on success */
+			"b",                                /* input signature */
+			"true");                            /* first argument */
 
     if (ret < 0) {
         fprintf(stderr, "Failed to issue method call: %s\n", error.message);
@@ -121,7 +121,7 @@ static void print_battery(UdevConnection *udevConnection)
 
     const int last_percentage = udevConnection->power.last_percentage;
     if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
-        do_suspend();
+        do_poweroff();
     }
     udevConnection->power.last_percentage = percentage;
 

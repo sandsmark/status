@@ -200,6 +200,8 @@ struct UdevConnection {
             power.batteryCharging = false;
         } else if (strcmp(chargingStatus, "Full") == 0) {
             power.batteryCharging = false;
+        } else if (strcmp(chargingStatus, "Unknown") == 0) {
+            // Sometimes happening while charger is plugged/unplugged
         } else {
             power.batteryCharging = power.chargerOnline;
             fprintf(stderr, "unknown status %s\n", chargingStatus);

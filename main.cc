@@ -108,13 +108,14 @@ static void print_battery(UdevConnection *udevConnection)
 
     const bool charging = chargerOnline;
 
-    if (charging && percentage > 97) {
-        return;
-    }
 
     if (charging) {
         printf("charging: %d%%", percentage);
-        print_gray();
+        if (percentage > 80) {
+            print_red();
+        } else {
+            print_gray();
+        }
         return;
     }
 
@@ -129,7 +130,7 @@ static void print_battery(UdevConnection *udevConnection)
         print_red();
     } else if (percentage < 20) {
         print_yellow();
-    } else if (percentage < 30) {
+    } else if (percentage < 50) {
         print_green();
     } else if (percentage > 90) {
         print_gray();

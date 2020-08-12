@@ -29,10 +29,10 @@ struct UdevConnection {
         udevSocketFd = udev_monitor_get_fd(udevMonitor);
         udevAvailable = true;
 
-        initBattery();
+        init();
     }
 
-    void initBattery()
+    void init()
     {
         udev_enumerate* enumerate = udev_enumerate_new(context);
 
@@ -83,7 +83,7 @@ struct UdevConnection {
 
             const char *deviceName = udev_device_get_sysname(dev);
             if (strcmp(deviceName, "BAT0") == 0) {
-                power.batteryDevice = dev;
+                udev_device_unref(dev);
             } else if (strcmp(deviceName, "AC") == 0) {
                 power.chargerDevice = dev;
             } else {
@@ -97,16 +97,8 @@ struct UdevConnection {
         udev_enumerate_unref(enumerate);
 
         power.valid = false;
-        if (!power.batteryDevice) {
-            fprintf(stderr, "Failed to find battery udev device\n");
-            return;
-        }
         if (!power.chargerDevice) {
             fprintf(stderr, "Failed to find charger device\n");
-            return;
-        }
-        if (!updateBattery()) {
-            fprintf(stderr, "Failed to update battery\n");
             return;
         }
         if (!updateCharger()) {
@@ -118,9 +110,6 @@ struct UdevConnection {
 
     ~UdevConnection()
     {
-        if (power.batteryDevice) {
-            udev_device_unref(power.batteryDevice);
-        }
         if (power.chargerDevice) {
             udev_device_unref(power.chargerDevice);
         }
@@ -156,13 +145,7 @@ struct UdevConnection {
 
         const char *deviceName = udev_device_get_sysname(dev);
         if (strcmp(deviceName, "BAT0") == 0) {
-            if (dev != power.batteryDevice) {
-                if (power.batteryDevice) {
-                    udev_device_unref(power.batteryDevice);
-                }
-
-                power.batteryDevice = dev;
-            }
+            udev_device_unref(dev);
         } else if (strcmp(deviceName, "AC") == 0) {
             if (dev != power.chargerDevice) {
                 if (power.chargerDevice) {
@@ -174,39 +157,7 @@ struct UdevConnection {
         } else {
             fprintf(stderr, "Unknown power supply device notification %s\n", deviceName);
         }
-        power.valid = power.batteryDevice && updateBattery() && power.chargerDevice && updateCharger();
-
-        return true;
-    }
-
-    bool updateBattery()
-    {
-        if (!udevAvailable) {
-            fprintf(stderr, "Udev unavailable, can't update battery!");
-            return false;
-        }
-
-        if (!power.batteryDevice) {
-            fprintf(stderr, "udev battery device not initialized\n");
-            return false;
-        }
-
-        const char *chargingStatus = udev_device_get_property_value(power.batteryDevice, "POWER_SUPPLY_STATUS");
-        if (strcmp(chargingStatus, "Charging") == 0) {
-            power.batteryCharging = true;
-        } else if (strcmp(chargingStatus, "Discharging") == 0) {
-            power.batteryCharging = false;
-        } else if (strcmp(chargingStatus, "Not charging") == 0) {
-            power.batteryCharging = false;
-        } else if (strcmp(chargingStatus, "Full") == 0) {
-            power.batteryCharging = false;
-        } else if (strcmp(chargingStatus, "Unknown") == 0) {
-            // Sometimes happening while charger is plugged/unplugged
-        } else {
-            power.batteryCharging = power.chargerOnline;
-            fprintf(stderr, "unknown status %s\n", chargingStatus);
-            printProperties(power.batteryDevice);
-        }
+        power.valid = power.chargerDevice && updateCharger();
 
         return true;
     }
@@ -237,11 +188,9 @@ struct UdevConnection {
     int udevSocketFd = -1;
 
     struct PowerStatus {
-        udev_device *batteryDevice = nullptr;
         udev_device *chargerDevice = nullptr;
 
         bool chargerOnline = false;
-        bool batteryCharging = false;
         int last_percentage = 100;
         bool valid = false;
     } power;

@@ -104,10 +104,7 @@ static void print_battery(UdevConnection *udevConnection)
     }
     fclose(file);
 
-    const bool batteryCharging = udevConnection->power.batteryCharging;
-
     const bool charging = chargerOnline;
-
 
     if (charging) {
         printf("charging: %d%%", percentage);

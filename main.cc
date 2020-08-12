@@ -554,8 +554,6 @@ int main(int argc, char *argv[])
 
         if (wasUdevEvent && udevEvents > 0) {
             udevConnection.update();
-        } else if (wasUdevEvent || udevEvents > 0) {
-            fprintf(stderr, "\n\nweird: %d, events: %d\n", int(wasUdevEvent), udevEvents);
         }
 
 #ifdef ENABLE_NOTIFICATIONS

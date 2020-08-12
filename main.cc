@@ -450,9 +450,9 @@ int main(int argc, char *argv[])
 
     sd_bus_slot *slot = nullptr;
     sd_bus *bus = nullptr;
-    int dbus_fd = -1;
 
 #ifdef ENABLE_NOTIFICATIONS
+    int dbus_fd = -1;
     int ret = sd_bus_default_user(&bus);
     if (ret < 0) {
         fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-ret));
@@ -532,46 +532,38 @@ int main(int argc, char *argv[])
         printf("\" } ],\n");
         fflush(stdout);
 
+        // Wait for either 1 second or for an udev event (or dbus event in case
+        // notifications is enabled).
         fd_set fdset;
-        if (udevConnection.udevAvailable || dbus_fd >= 0) {
-            FD_ZERO(&fdset);
-            FD_SET(udevConnection.udevSocketFd, &fdset);
-
-            if (dbus_fd >= 0) {
-                FD_SET(dbus_fd, &fdset);
-            }
-
-            timeval timeout;
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 1000000; // 1s
-            const bool success = (select(std::max(udevConnection.udevSocketFd, dbus_fd) + 1, &fdset, 0, 0, &timeout) != -1) && (errno == 0);
-            if (success && FD_ISSET(udevConnection.udevSocketFd, &fdset)) {
-                udevConnection.update();
-            }
+        FD_ZERO(&fdset);
+        FD_SET(udevConnection.udevSocketFd, &fdset);
 
 #ifdef ENABLE_NOTIFICATIONS
-            if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {
-                fprintf(stderr, "processing dbus\n");
-                process_bus(bus);
-            }
+        FD_SET(dbus_fd, &fdset);
 #endif
-        } else {
-            fprintf(stderr, "udev and dbus unavailable!\n");
 
-            // sleep until the next second
-            struct timespec ts;
-            if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
-                perror("clock_gettime");
-                return 1;
-            }
-            ts.tv_sec++;
-            if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr) == -1) {
-                perror("clock_nanosleep");
-                return 1;
-            }
+        timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 1000000; // 1s
+        const int udevEvents = select(udevConnection.udevSocketFd + 1, &fdset, 0, 0, &timeout);
+        const bool wasUdevEvent = FD_ISSET(udevConnection.udevSocketFd, &fdset); // not strictly necessary I guess
+        if (errno != 0) {
+            fprintf(stderr, "got error while selecting: %s\n", strerror(errno));
+            break; // in case it didn't even wait for a timeout, avoid busylooping
+        }
+
+        if (wasUdevEvent && udevEvents > 0) {
+            udevConnection.update();
+        } else if (wasUdevEvent || udevEvents > 0) {
+            fprintf(stderr, "\n\nweird: %d, events: %d\n", int(wasUdevEvent), udevEvents);
         }
 
 #ifdef ENABLE_NOTIFICATIONS
+        if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {
+            fprintf(stderr, "processing dbus\n");
+            process_bus(bus);
+        }
+
         if (!g_notifications.empty()) {
             if (g_notifications.front().timeout-- <= 0) {
                 g_notifications.erase(g_notifications.begin());

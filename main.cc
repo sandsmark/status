@@ -552,9 +552,7 @@ int main(int argc, char *argv[])
             break; // in case it didn't even wait for a timeout, avoid busylooping
         }
 
-        if (wasUdevEvent && udevEvents > 0) {
-            udevConnection.update();
-        }
+        udevConnection.update(wasUdevEvent && udevEvents > 0);
 
 #ifdef ENABLE_NOTIFICATIONS
         if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {

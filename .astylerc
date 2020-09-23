@@ -1,0 +1,9 @@
+--add-brackets
+--align-pointer=name
+--attach-namespaces
+--break-blocks
+--close-templates
+--pad-header
+--pad-oper
+--style=1tbs
+--unpad-paren

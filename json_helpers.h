@@ -2,7 +2,8 @@
 
 #include <stdio.h>
 
-inline void print_sep() {
+inline void print_sep()
+{
     printf("\""
            "  },"
            "  {   \"full_text\": \"");

@@ -14,16 +14,19 @@ struct UdevConnection {
     UdevConnection()
     {
         context = udev_new();
+
         if (!context) {
             fprintf(stderr, "Failed to connect to udev\n");
             return;
         }
 
         udevMonitor = udev_monitor_new_from_netlink(context, "udev");
+
         if (!udevMonitor) {
             fprintf(stderr, "Failed to create udev monitor\n");
             return;
         }
+
         udev_monitor_filter_add_match_subsystem_devtype(udevMonitor, "power_supply", 0);
         udev_monitor_enable_receiving(udevMonitor);
         udevSocketFd = udev_monitor_get_fd(udevMonitor);
@@ -34,7 +37,7 @@ struct UdevConnection {
 
     void init()
     {
-        udev_enumerate* enumerate = udev_enumerate_new(context);
+        udev_enumerate *enumerate = udev_enumerate_new(context);
 
         udev_enumerate_add_match_subsystem(enumerate, "power_supply");
         udev_enumerate_add_match_subsystem(enumerate, "net");
@@ -44,17 +47,22 @@ struct UdevConnection {
         udev_list_entry *entry = nullptr;
 
         udev_list_entry_foreach(entry, devices) {
-            const char* path = udev_list_entry_get_name(entry);
+            const char *path = udev_list_entry_get_name(entry);
+
             if (!path) {
                 fprintf(stderr, "Invalid device when listing\n");
                 continue;
             }
+
             udev_device *dev = udev_device_new_from_syspath(context, path);
+
             if (!dev) {
                 fprintf(stderr, "failed getting %s\n", path);
                 continue;
             }
+
             const char *subsystem = udev_device_get_subsystem(dev);
+
             if (strcmp(subsystem, "net") == 0) {
                 const char *interface = udev_device_get_property_value(dev, "INTERFACE");
                 const char *devtype = udev_device_get_devtype(dev);
@@ -82,6 +90,7 @@ struct UdevConnection {
             }
 
             const char *deviceName = udev_device_get_sysname(dev);
+
             if (strcmp(deviceName, "BAT0") == 0) {
                 power.batteryDevice = dev; // so we get updates when waking from sleep
             } else if (strcmp(deviceName, "AC") == 0) {
@@ -97,14 +106,17 @@ struct UdevConnection {
         udev_enumerate_unref(enumerate);
 
         power.valid = false;
+
         if (!power.chargerDevice) {
             fprintf(stderr, "Failed to find charger device\n");
             return;
         }
+
         if (!updateCharger()) {
             fprintf(stderr, "Failed to update charger\n");
             return;
         }
+
         power.valid = true;
     }
 
@@ -113,12 +125,15 @@ struct UdevConnection {
         if (power.chargerDevice) {
             udev_device_unref(power.chargerDevice);
         }
+
         if (power.batteryDevice) {
             udev_device_unref(power.batteryDevice);
         }
+
         if (udevMonitor) {
             udev_monitor_unref(udevMonitor);
         }
+
         if (context) {
             udev_unref(context);
         }
@@ -129,10 +144,11 @@ struct UdevConnection {
         fprintf(stderr, "action: %s\n", udev_device_get_action(dev));
         fprintf(stderr, "sysname: %s\n", udev_device_get_sysname(dev));
         udev_list_entry *entry = udev_device_get_properties_list_entry(dev);
+
         while (entry) {
             const char *name = udev_list_entry_get_name(entry);
             const char *value = udev_list_entry_get_value(entry);
-            fprintf(stderr,"property name: %s value %s\n", name, value);
+            fprintf(stderr, "property name: %s value %s\n", name, value);
             entry = udev_list_entry_get_next(entry);
         }
     }
@@ -148,6 +164,7 @@ struct UdevConnection {
             udev_device *dev = udev_monitor_receive_device(udevMonitor);
 
             const char *deviceName = udev_device_get_sysname(dev);
+
             if (strcmp(deviceName, "BAT0") == 0) {
                 if (dev != power.batteryDevice) {
                     if (power.batteryDevice) {
@@ -168,7 +185,9 @@ struct UdevConnection {
                 fprintf(stderr, "Unknown power supply device notification %s\n", deviceName);
             }
         }
+
         power.valid = updateCharger();
+
         if (!power.valid) {
             power.chargerOnline = false;
         }
@@ -176,13 +195,15 @@ struct UdevConnection {
         return true;
     }
 
-    bool updateCharger() {
+    bool updateCharger()
+    {
         if (!power.chargerDevice) {
             //fprintf(stderr, "charger not available?\n");
             return false;
         }
 
         const char *online = udev_device_get_property_value(power.chargerDevice, "POWER_SUPPLY_ONLINE");
+
         if (strcmp(online, "1") == 0) {
             power.chargerOnline = true;
         } else if (strcmp(online, "0") == 0) {

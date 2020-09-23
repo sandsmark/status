@@ -32,13 +32,17 @@ static_assert(mem_samples > 1, "mem_samples must be greater than 0");
 
 static bool g_running = true;
 
-static void print_disk_info(const char *path) {
+static void print_disk_info(const char *path)
+{
     struct statvfs buf;
+
     if (statvfs(path, &buf) == -1) {
         fprintf(stderr, "error running statvfs on %s: %s\n", path, strerror(errno));
         return;
     }
+
     double gb_free = (double)buf.f_bavail * (double)buf.f_bsize / 1000000000.0;
+
     if (gb_free < 1) {
         printf("%s %.1f GB", path, gb_free);
         print_red();
@@ -55,22 +59,23 @@ static void do_poweroff()
 {
     sd_bus *bus = nullptr;
     int ret = sd_bus_open_system(&bus);
+
     if (ret < 0) {
         fprintf(stderr, "Failed to connect to system bus: %s", strerror(-ret));
         return;
     }
 
     sd_bus_error error = SD_BUS_ERROR_NULL;
-	sd_bus_message *dbusRet = nullptr;
-	ret = sd_bus_call_method(bus,
-			"org.freedesktop.login1",           /* service to contact */
-			"/org/freedesktop/login1",          /* object path */
-			"org.freedesktop.login1.Manager",   /* interface name */
-			"PowerOff",                         /* method name */
-			&error,                             /* object to return error in */
-			&dbusRet,                           /* return message on success */
-			"b",                                /* input signature */
-			"true");                            /* first argument */
+    sd_bus_message *dbusRet = nullptr;
+    ret = sd_bus_call_method(bus,
+                             "org.freedesktop.login1",           /* service to contact */
+                             "/org/freedesktop/login1",          /* object path */
+                             "org.freedesktop.login1.Manager",   /* interface name */
+                             "PowerOff",                         /* method name */
+                             &error,                             /* object to return error in */
+                             &dbusRet,                           /* return message on success */
+                             "b",                                /* input signature */
+                             "true");                            /* first argument */
 
     if (ret < 0) {
         fprintf(stderr, "Failed to issue method call: %s\n", error.message);
@@ -92,16 +97,20 @@ static void print_battery(UdevConnection *udevConnection)
     const bool chargerOnline = udevConnection->power.chargerOnline;
 
     FILE *file = fopen("/sys/class/power_supply/BAT0/capacity", "r");
+
     if (!file) {
         puts("failed to open file for battery");
         return;
     }
+
     int percentage = -1;
+
     if (fscanf(file, "%d", &percentage) != 1) {
         puts("Failed to read battery capacity");
         fclose(file);
         return;
     }
+
     fclose(file);
 
     const bool charging = chargerOnline;
@@ -113,12 +122,15 @@ static void print_battery(UdevConnection *udevConnection)
     }
 
     const int last_percentage = udevConnection->power.last_percentage;
+
     if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
         do_poweroff();
     }
+
     udevConnection->power.last_percentage = percentage;
 
     printf("bat: %d%%", percentage);
+
     if (percentage < 10) {
         print_red();
     } else if (percentage < 20) {
@@ -134,11 +146,14 @@ static unsigned s_cpu_count = 1;
 static void print_cpu()
 {
     FILE *fp = fopen("/proc/stat", "r");
+
     if (!fp) {
         printf("cpu: error opening /proc/stat: %s\n", strerror(errno));
         return;
     }
+
     unsigned user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice;
+
     if (!fscanf(fp, "cpu %u %u %u %u %u %u %u %u %u %u",
                 &user, &nice, &system, &idle, &iowait,
                 &irq, &softirq, &steal, &guest, &guest_nice)) {
@@ -146,6 +161,7 @@ static void print_cpu()
         printf("cpu usage error");
         return;
     }
+
     fclose(fp);
 
     idle += iowait;
@@ -176,14 +192,17 @@ static void print_cpu()
 
 }
 
-static void print_load() {
+static void print_load()
+{
     double loadavg;
+
     if (getloadavg(&loadavg, 1) == -1) {
         fputs("load: error", stdout);
         return;
     }
 
     printf("load: %1.2f", loadavg);
+
     // Only print high load if CPU is not attracting attention
     if (loadavg > 2 && s_cpu_high_seconds < 30) {
         print_yellow();
@@ -192,9 +211,11 @@ static void print_load() {
     }
 }
 
-static bool print_wifi_strength(const std::string &interface, const bool ignoreErrors) {
+static bool print_wifi_strength(const std::string &interface, const bool ignoreErrors)
+{
     {
         FILE *fp = fopen(("/sys/class/net/" + interface + "/carrier").c_str(), "r");
+
         if (!fp) {
             if (!ignoreErrors) {
                 printf("Unable to get carrier status for wifi");
@@ -207,6 +228,7 @@ static bool print_wifi_strength(const std::string &interface, const bool ignoreE
         size_t len;
         getline(&line, &len, fp);
         fclose(fp);
+
         if (strcmp(line, "0\n") == 0) {
             if (!ignoreErrors) {
                 printf("wifi down");
@@ -215,10 +237,12 @@ static bool print_wifi_strength(const std::string &interface, const bool ignoreE
             free(line);
             return false;
         }
+
         free(line);
     }
 
     FILE *fp = fopen("/proc/net/wireless", "r");
+
     if (!fp) {
         if (!ignoreErrors) {
             printf("wifi: error opening /proc/net/wireless: %s\n", strerror(errno));
@@ -230,11 +254,13 @@ static bool print_wifi_strength(const std::string &interface, const bool ignoreE
     int strength = -1.0;
 
     const std::string matchString = " " + interface + ": %*u %d. %*f %*d %*u %*u %*u %*u %*u %*u";
+
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
         if (sscanf(ln, matchString.c_str(), &strength) == 1) {
             break;
         }
     }
+
     free(ln);
     fclose(fp);
 
@@ -246,6 +272,7 @@ static bool print_wifi_strength(const std::string &interface, const bool ignoreE
         return false;
     } else {
         printf("wifi: %3d%%", strength * 100 / 70);
+
         if (strength > 30) {
             print_gray();
         }
@@ -253,11 +280,13 @@ static bool print_wifi_strength(const std::string &interface, const bool ignoreE
     return true;
 }
 
-static bool print_net_usage(const std::string &device) {
+static bool print_net_usage(const std::string &device)
+{
     static std::unordered_set<std::string> inited;
 
     {
         FILE *fp = fopen(("/sys/class/net/" + device + "/carrier").c_str(), "r");
+
         if (!fp) {
             inited.erase(device);
             return false;
@@ -265,6 +294,7 @@ static bool print_net_usage(const std::string &device) {
 
         const char status = getc(fp);
         fclose(fp);
+
         if (status != '1') {
             inited.erase(device);
             return false;
@@ -272,23 +302,26 @@ static bool print_net_usage(const std::string &device) {
     }
 
     FILE *fp = fopen("/proc/net/dev", "r");
+
     if (!fp) {
         inited.erase(device);
         return false;
     }
 
-    static std::unordered_map<std::string, std::array<unsigned long, 1 + net_samples>> rx_map;
-    static std::unordered_map<std::string, std::array<unsigned long, 1 + net_samples>> tx_map;
+    static std::unordered_map < std::string, std::array < unsigned long, 1 + net_samples >> rx_map;
+    static std::unordered_map < std::string, std::array < unsigned long, 1 + net_samples >> tx_map;
     size_t *rx = rx_map[device].data();
     size_t *tx = tx_map[device].data();
 
     char *ln = nullptr;
+
     for (size_t len = 0; getline(&ln, &len, fp) != -1;) {
         if (sscanf(ln, (" " + device + ": %lu %*u %*u %*u %*u %*u %*u %*u %lu").c_str(),
                    &rx[net_samples], &tx[net_samples]) == 2) {
             break;
         }
     }
+
     free(ln);
     fclose(fp);
 
@@ -297,15 +330,18 @@ static bool print_net_usage(const std::string &device) {
             rx[i] = rx[net_samples];
             tx[i] = tx[net_samples];
         }
+
         inited.insert(device);
     }
 
     unsigned long rx_delta = 0;
     unsigned long tx_delta = 0;
+
     for (unsigned i = 0; i < net_samples; i++) {
         rx_delta += rx[i + 1] - rx[i];
         tx_delta += tx[i + 1] - tx[i];
     }
+
     rx_delta /= net_samples + 1;
     tx_delta /= net_samples + 1;
 
@@ -313,7 +349,7 @@ static bool print_net_usage(const std::string &device) {
     tx_delta /= 1024;
 
     if (rx_delta > 100) {
-        printf("rx: %5.1fmb ", rx_delta/1024.);
+        printf("rx: %5.1fmb ", rx_delta / 1024.);
     } else {
         printf("rx: %5lukb ", rx_delta);
     }
@@ -334,8 +370,10 @@ static bool print_net_usage(const std::string &device) {
     return true;
 }
 
-static void print_mem() {
+static void print_mem()
+{
     FILE *fp = fopen("/proc/meminfo", "r");
+
     if (!fp) {
         printf("mem: error opening /proc/meminfo: %s\n", strerror(errno));
         return;
@@ -348,6 +386,7 @@ static void print_mem() {
         sscanf(line, "MemTotal: %lu kB", &memtotal);
         sscanf(line, "MemAvailable: %lu kB", &memavailable);
     }
+
     free(line);
 
     const long used = memtotal - memavailable;
@@ -355,17 +394,21 @@ static void print_mem() {
     static long last_used[1 + mem_samples];
 
     static bool first_run = true;
+
     if (first_run) {
         for (unsigned i = 0; i < mem_samples; i++) {
             last_used[i] = used;
         }
+
         first_run = false;
     }
 
     long accum = used;
-    for (unsigned i=0; i<mem_samples; i++) {
+
+    for (unsigned i = 0; i < mem_samples; i++) {
         accum += last_used[i];
     }
+
     accum /= mem_samples + 1;
 
     last_used[mem_samples] = used;
@@ -383,12 +426,14 @@ static void print_mem() {
     fclose(fp);
 }
 
-static void print_time(time_t offset = 0) {
+static void print_time(time_t offset = 0)
+{
     time_t now;
     tm result;
 
     time(&now);
     char buf[sizeof "week 43 Fri 2015-10-30 12:44:52"];
+
     if (offset) {
         now += offset;
         strftime(buf, sizeof buf, "%H:%M", localtime_r(&now, &result));
@@ -408,6 +453,7 @@ static void print_volume(PulseClient &client)
 {
     client.Populate();
     const Sink *device = client.GetDefaultSink();
+
     if (!device) {
         printf("couldn't find default sink");
         print_red();
@@ -426,6 +472,7 @@ static void print_volume(PulseClient &client)
 static std::vector<std::string> getPartitions()
 {
     FILE *file = setmntent("/proc/mounts", "r");
+
     if (file == NULL) {
         fprintf(stderr, "Failed to open /proc/mounts");
         return {};
@@ -433,12 +480,15 @@ static std::vector<std::string> getPartitions()
 
     std::vector<std::string> partitions;
     mntent *ent = nullptr;
+
     while ((ent = getmntent(file))) {
         if (std::string(ent->mnt_type) != "ext4") {
             continue;
         }
+
         partitions.push_back(ent->mnt_dir);
     }
+
     endmntent(file);
 
     return partitions;
@@ -447,7 +497,8 @@ static std::vector<std::string> getPartitions()
 int main(int argc, char *argv[])
 {
     bool ignoreWifi = false;
-    for (int i=1; i<argc; i++) {
+
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ignore-wifi") == 0) {
             ignoreWifi = true;
         }
@@ -464,6 +515,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_NOTIFICATIONS
     int dbus_fd = -1;
     int ret = sd_bus_default_user(&bus);
+
     if (ret < 0) {
         fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-ret));
         bus = nullptr;
@@ -472,6 +524,7 @@ int main(int argc, char *argv[])
     } else {
         fprintf(stderr, "Not using notifications\n");
     }
+
 #endif
     s_cpu_count = get_nprocs();
 
@@ -496,10 +549,12 @@ int main(int argc, char *argv[])
         printf(" [ { \"full_text\": \"");
 
 #ifdef ENABLE_NOTIFICATIONS
+
         if (!g_notifications.empty()) {
             print_notification(&g_notifications.front());
             print_sep();
         }
+
 #endif
 
         if (udevConnection.power.valid) {
@@ -560,6 +615,7 @@ int main(int argc, char *argv[])
         timeout.tv_usec = 1000000; // 1s
         const int udevEvents = select(udevConnection.udevSocketFd + 1, &fdset, 0, 0, &timeout);
         const bool wasUdevEvent = FD_ISSET(udevConnection.udevSocketFd, &fdset); // not strictly necessary I guess
+
         if (errno != 0) {
             fprintf(stderr, "got error while selecting: %s\n", strerror(errno));
             break; // in case it didn't even wait for a timeout, avoid busylooping
@@ -568,6 +624,7 @@ int main(int argc, char *argv[])
         udevConnection.update(wasUdevEvent && udevEvents > 0);
 
 #ifdef ENABLE_NOTIFICATIONS
+
         if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {
             fprintf(stderr, "processing dbus\n");
             process_bus(bus);
@@ -578,12 +635,14 @@ int main(int argc, char *argv[])
                 g_notifications.erase(g_notifications.begin());
             }
         }
+
 #endif
     }
 
     if (slot) {
         sd_bus_slot_unref(slot);
     }
+
     if (bus) {
         sd_bus_unref(bus);
     }

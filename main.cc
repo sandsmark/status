@@ -494,58 +494,34 @@ static std::vector<std::string> getPartitions()
     return partitions;
 }
 
-int main(int argc, char *argv[])
+struct Status
 {
-    bool ignoreWifi = false;
+    Status() : client("status")
+    {}
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--ignore-wifi") == 0) {
-            ignoreWifi = true;
-        }
-    }
-
-
-    UdevConnection udevConnection;
-
-    const std::vector<std::string> mountPoints = getPartitions();
-
-    sd_bus_slot *slot = nullptr;
-    sd_bus *bus = nullptr;
+    void init()
+    {
+        const std::vector<std::string> mountPoints = getPartitions();
 
 #ifdef ENABLE_NOTIFICATIONS
-    int dbus_fd = -1;
-    int ret = sd_bus_default_user(&bus);
+        int dbus_fd = -1;
+        int ret = sd_bus_default_user(&bus);
 
-    if (ret < 0) {
-        fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-ret));
-        bus = nullptr;
-    } else if (register_notification_service(bus, &slot)) {
-        dbus_fd = sd_bus_get_fd(bus);
-    } else {
-        fprintf(stderr, "Not using notifications\n");
+        if (ret < 0) {
+            fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-ret));
+            bus = nullptr;
+        } else if (register_notification_service(bus, &slot)) {
+            dbus_fd = sd_bus_get_fd(bus);
+        } else {
+            fprintf(stderr, "Not using notifications\n");
+        }
+#endif
+
+        s_cpu_count = get_nprocs();
     }
 
-#endif
-    s_cpu_count = get_nprocs();
-
-    PulseClient client("status");
-
-    struct sigaction sa = {};
-    sa.sa_handler = [](int) {
-        fputs("received SIGPIPE, exiting\n", stderr);
-        exit(1);
-    };
-    sigaction(SIGPIPE, &sa, nullptr);
-
-    // Can't capture here, hence global static
-    sa.sa_handler = [](int) {
-        g_running = false;
-    };
-    sigaction(SIGINT, &sa, nullptr);
-
-    printf("{ \"version\": 1 }\n[\n");
-
-    while (g_running) {
+    bool print()
+    {
         printf(" [ { \"full_text\": \"");
 
 #ifdef ENABLE_NOTIFICATIONS
@@ -618,13 +594,12 @@ int main(int argc, char *argv[])
 
         if (errno != 0) {
             fprintf(stderr, "got error while selecting: %s\n", strerror(errno));
-            break; // in case it didn't even wait for a timeout, avoid busylooping
+            return false;
         }
 
         udevConnection.update(wasUdevEvent && udevEvents > 0);
 
 #ifdef ENABLE_NOTIFICATIONS
-
         if (dbus_fd >= 0 && FD_ISSET(dbus_fd, &fdset)) {
             fprintf(stderr, "processing dbus\n");
             process_bus(bus);
@@ -635,16 +610,67 @@ int main(int argc, char *argv[])
                 g_notifications.erase(g_notifications.begin());
             }
         }
+#endif
 
+        return true;
+    }
+
+    ~Status()
+    {
+#ifdef ENABLE_NOTIFICATIONS
+        if (slot) {
+            sd_bus_slot_unref(slot);
+        }
+
+        if (bus) {
+            sd_bus_unref(bus);
+        }
 #endif
     }
 
-    if (slot) {
-        sd_bus_slot_unref(slot);
-    }
+    bool ignoreWifi = false;
+    std::vector<std::string> mountPoints;
 
-    if (bus) {
-        sd_bus_unref(bus);
+    UdevConnection udevConnection;
+
+    PulseClient client;
+
+#ifdef ENABLE_NOTIFICATIONS
+    sd_bus_slot *slot = nullptr;
+    sd_bus *bus = nullptr;
+#endif
+};
+
+int main(int argc, char *argv[])
+{
+    Status status;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--ignore-wifi") == 0) {
+            status.ignoreWifi = true;
+        }
+    }
+    status.init();
+
+    struct sigaction sa = {};
+    sa.sa_handler = [](int) {
+        fputs("received SIGPIPE, exiting\n", stderr);
+        exit(1);
+    };
+    sigaction(SIGPIPE, &sa, nullptr);
+
+    // Can't capture here, hence global static
+    sa.sa_handler = [](int) {
+        g_running = false;
+    };
+    sigaction(SIGINT, &sa, nullptr);
+
+    printf("{ \"version\": 1 }\n[\n");
+
+    while (g_running) {
+        if (!status.print()) {
+            break;
+        }
     }
 
     return 0;

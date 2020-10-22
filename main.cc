@@ -192,13 +192,15 @@ static void print_load() {
     }
 }
 
-static void print_wifi_strength(const std::string &interface) {
+static bool print_wifi_strength(const std::string &interface, const bool ignoreErrors) {
     {
         FILE *fp = fopen(("/sys/class/net/" + interface + "/carrier").c_str(), "r");
         if (!fp) {
-            printf("Unable to get carrier status for wifi");
-            print_sep();
-            return;
+            if (!ignoreErrors) {
+                printf("Unable to get carrier status for wifi");
+                print_sep();
+            }
+            return false;
         }
 
         char *line = nullptr;
@@ -206,18 +208,22 @@ static void print_wifi_strength(const std::string &interface) {
         getline(&line, &len, fp);
         fclose(fp);
         if (strcmp(line, "0\n") == 0) {
-            printf("wifi down");
-            print_red();
+            if (!ignoreErrors) {
+                printf("wifi down");
+                print_red();
+            }
             free(line);
-            return;
+            return false;
         }
         free(line);
     }
 
     FILE *fp = fopen("/proc/net/wireless", "r");
     if (!fp) {
-        printf("wifi: error opening /proc/net/wireless: %s\n", strerror(errno));
-        return;
+        if (!ignoreErrors) {
+            printf("wifi: error opening /proc/net/wireless: %s\n", strerror(errno));
+        }
+        return false;
     }
 
     char *ln = nullptr;
@@ -233,14 +239,18 @@ static void print_wifi_strength(const std::string &interface) {
     fclose(fp);
 
     if (strength < 0) {
-        printf("wifi down");
-        print_red();
+        if (!ignoreErrors) {
+            printf("wifi down");
+            print_red();
+        }
+        return false;
     } else {
         printf("wifi: %3d%%", strength * 100 / 70);
         if (strength > 30) {
             print_gray();
         }
     }
+    return true;
 }
 
 static bool print_net_usage(const std::string &device) {
@@ -502,20 +512,23 @@ int main(int argc, char *argv[])
             print_sep();
         }
 
+        bool hasEthernet = false;
         for (const std::string &dev : udevConnection.ethernetInterfaces) {
-            print_net_usage(dev);
+            hasEthernet = print_net_usage(dev) || hasEthernet;
             print_sep();
         }
 
         for (const std::string &dev : udevConnection.wlanInterfaces) {
-            print_net_usage(dev);
-            print_sep();
+            if (print_net_usage(dev)) {
+                print_sep();
+            }
         }
 
         if (!ignoreWifi) {
             for (const std::string &dev : udevConnection.wlanInterfaces) {
-                print_wifi_strength(dev);
-                print_sep();
+                if (print_wifi_strength(dev, hasEthernet)) {
+                    print_sep();
+                }
             }
         }
 

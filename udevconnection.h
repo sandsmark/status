@@ -178,7 +178,7 @@ struct UdevConnection {
 
     bool updateCharger() {
         if (!power.chargerDevice) {
-            fprintf(stderr, "charger not available?\n");
+            //fprintf(stderr, "charger not available?\n");
             return false;
         }
 

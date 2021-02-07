@@ -55,6 +55,57 @@ static void print_disk_info(const char *path)
     }
 }
 
+static void send_notification(const std::string &text, const std::string &iconName)
+{
+    sd_bus *bus = nullptr;
+    int ret = sd_bus_default_user(&bus);
+    if (ret < 0 || !bus) {
+        perror("Failed to connect to user bus");
+        return;
+    }
+
+    sd_bus_error error = SD_BUS_ERROR_NULL;
+    sd_bus_message *dbusRet = nullptr;
+    ret = sd_bus_call_method(bus,
+         "org.freedesktop.Notifications",    /* service to contact */
+         "/org/freedesktop/Notifications",   /* object path */
+         "org.freedesktop.Notifications",    /* interface name */
+         "Notify",                           /* method name */
+         &error,                             /* object to return error in */
+         &dbusRet,                           /* return message on success */
+         /* input signature:            */
+         "s"        /*    - STRING app_name        */
+         "u"        /*    - UINT32 replaces_id     */
+         "s"        /*    - STRING app_icon        */
+         "s"        /*    - STRING summary         */
+         "s"        /*    - STRING body            */
+         "as"       /*    - as actions             */
+         "a{sv}"    /*    - a{sv} hints            */
+          "i"       /*    - INT32 expire_timeout   */
+          ,
+          /* arguments: */
+         "status",          /*    - STRING app_name        */
+         0,                 /*    - UINT32 replaces_id     */
+         iconName.c_str(),  /*    - STRING app_icon        */
+         text.c_str(),      /*    - STRING summary         */
+         "",                /*    - STRING body            */
+         0,                 /*    - as actions             */
+         0,                 /*    - a{sv} hints            */
+         -1                 /*    - INT32 expire_timeout   */
+    );
+
+
+    if (ret < 0) {
+        fprintf(stderr, "Failed to issue method call: %s\n", error.message);
+    }
+
+    sd_bus_error_free(&error);
+    sd_bus_message_unref(dbusRet);
+    sd_bus_unref(bus);
+
+    errno = 0;
+}
+
 static void do_poweroff()
 {
     sd_bus *bus = nullptr;

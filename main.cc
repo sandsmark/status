@@ -32,13 +32,13 @@ static_assert(mem_samples > 1, "mem_samples must be greater than 0");
 
 static bool g_running = true;
 
-static void print_disk_info(const char *path)
+static bool print_disk_info(const char *path)
 {
     struct statvfs buf;
 
     if (statvfs(path, &buf) == -1) {
         fprintf(stderr, "error running statvfs on %s: %s\n", path, strerror(errno));
-        return;
+        return false;
     }
 
     double gb_free = (double)buf.f_bavail * (double)buf.f_bsize / 1000000000.0;
@@ -53,6 +53,7 @@ static void print_disk_info(const char *path)
         printf("%s %.0f GB", path, gb_free);
         print_gray();
     }
+    return true;
 }
 
 static void send_notification(const std::string &text, const std::string &iconName)
@@ -568,7 +569,7 @@ struct Status
 
     void init()
     {
-        const std::vector<std::string> mountPoints = getPartitions();
+        mountPoints = getPartitions();
 
 #ifdef ENABLE_NOTIFICATIONS
         int dbus_fd = -1;
@@ -581,7 +582,7 @@ struct Status
             dbus_fd = sd_bus_get_fd(bus);
         } else {
             fprintf(stderr, "Not using notifications\n");
-        }
+        
 #endif
 
         s_cpu_count = get_nprocs();
@@ -605,9 +606,22 @@ struct Status
             print_sep();
         }
 
+        if (mountPoints.empty()) {
+            fprintf(stderr, "partitions gone?");
+            mountPoints = getPartitions();
+        }
+
+        bool failed = false;
         for (const std::string &partition : mountPoints) {
-            print_disk_info(partition.c_str());
-            print_sep();
+            if (print_disk_info(partition.c_str())) {
+                print_sep();
+            } else {
+                fprintf(stderr, "partition %s gone?", partition.c_str());
+                failed = true;
+            }
+        }
+        if (failed) {
+            mountPoints = getPartitions();
         }
 
         bool hasEthernet = false;

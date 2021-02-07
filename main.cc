@@ -638,8 +638,8 @@ struct Status
 #endif
 
         timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 1000000; // 1s
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0; // 1s
         const int udevEvents = select(udevConnection.udevSocketFd + 1, &fdset, 0, 0, &timeout);
         const bool wasUdevEvent = FD_ISSET(udevConnection.udevSocketFd, &fdset); // not strictly necessary I guess
 

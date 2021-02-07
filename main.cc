@@ -187,6 +187,7 @@ static void print_battery(UdevConnection *udevConnection)
     if (percentage < 10) {
         if (last_percentage >= 10) {
             flashing = 10;
+            send_notification("Battery getting low", "battery-caution");
         }
         print_red();
     } else if (percentage < 20) {

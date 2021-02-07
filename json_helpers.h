@@ -24,11 +24,6 @@ inline void print_red()
     printf("\", \"color\": \"#ff9999");
 }
 
-inline void print_red_background()
-{
-    printf("\", \"background\": \"#ff9999");
-}
-
 inline void print_yellow()
 {
     printf("\", \"color\": \"#ffff00");
@@ -37,6 +32,16 @@ inline void print_yellow()
 inline void print_green()
 {
     printf("\", \"color\": \"#00ff00");
+}
+
+inline void print_white()
+{
+    printf("\", \"color\": \"#ffffff");
+}
+
+inline void print_red_background()
+{
+    printf("\", \"background\": \"#ff0000");
 }
 
 inline void print_white_background()

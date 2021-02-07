@@ -182,12 +182,27 @@ static void print_battery(UdevConnection *udevConnection)
 
     printf("bat: %d%%", percentage);
 
+    static int flashing = 0;
+
     if (percentage < 10) {
+        if (last_percentage >= 10) {
+            flashing = 10;
+        }
         print_red();
     } else if (percentage < 20) {
+        if (last_percentage >= 20) {
+            flashing = 5;
+        }
         print_green();
     } else if (percentage > 90) {
         print_gray();
+    }
+
+    if (flashing > 0) {
+        if ((flashing % 2) == 0) {
+            print_red_background();
+        }
+        flashing--;
     }
 }
 

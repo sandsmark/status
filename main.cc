@@ -142,7 +142,7 @@ static void do_poweroff()
 static void print_battery(UdevConnection *udevConnection)
 {
     if (!udevConnection->power.valid) {
-        fprintf(stderr, "udev invalid, failed to get battery\n");
+        printf("udev invalid, failed to get battery");
         return;
     }
 
@@ -151,14 +151,14 @@ static void print_battery(UdevConnection *udevConnection)
     FILE *file = fopen("/sys/class/power_supply/BAT0/capacity", "r");
 
     if (!file) {
-        puts("failed to open file for battery");
+        printf("failed to open file for battery");
         return;
     }
 
     int percentage = -1;
 
     if (fscanf(file, "%d", &percentage) != 1) {
-        puts("Failed to read battery capacity");
+        printf("Failed to read battery capacity");
         fclose(file);
         return;
     }
@@ -167,7 +167,10 @@ static void print_battery(UdevConnection *udevConnection)
 
     const bool charging = chargerOnline;
 
+    static int flashing = 0;
+
     if (charging) {
+        flashing = 0;
         printf("charging: %d%%", percentage);
         print_gray();
         return;
@@ -182,8 +185,6 @@ static void print_battery(UdevConnection *udevConnection)
     udevConnection->power.last_percentage = percentage;
 
     printf("bat: %d%%", percentage);
-
-    static int flashing = 0;
 
     if (percentage < 10) {
         if (last_percentage >= 10) {

@@ -19,6 +19,7 @@
 #include <systemd/sd-bus.h>
 #include <sys/sysinfo.h>
 #include <mntent.h>
+#include <cmath>
 
 #include "pulse.h"
 
@@ -483,8 +484,8 @@ static void print_mem()
     last_used[mem_samples] = used;
     memmove(last_used, last_used + 1, sizeof last_used[0] * mem_samples);
 
-    double percentage = used * 100.0 / memtotal;
-    printf("mem: %.0f%%", percentage);
+    int percentage = std::round(used * 100.0 / memtotal);
+    printf("mem: %3d%%", percentage);
 
     if (percentage > 80 || used - accum > 1024 * 512) {
         print_red();

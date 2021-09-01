@@ -170,6 +170,9 @@ static void print_battery(UdevConnection *udevConnection)
 
     static int flashing = 0;
 
+    const int last_percentage = udevConnection->power.last_percentage;
+    udevConnection->power.last_percentage = percentage;
+
     if (charging) {
         flashing = 0;
         printf("charging: %d%%", percentage);
@@ -177,13 +180,10 @@ static void print_battery(UdevConnection *udevConnection)
         return;
     }
 
-    const int last_percentage = udevConnection->power.last_percentage;
-
     if (last_percentage < 100 && percentage < last_percentage && percentage < 5) {
         do_poweroff();
     }
 
-    udevConnection->power.last_percentage = percentage;
 
     printf("bat: %d%%", percentage);
 
